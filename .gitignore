@@ -7,3 +7,4 @@ documents/
 dist/
 build/
 .pytest_cache/
+.idea
