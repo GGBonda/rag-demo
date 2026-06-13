@@ -11,6 +11,7 @@ from typing import List
 # Monkey-patch: unstructured 0.20+ 需要 IsExtracted 枚举，
 # 但 unstructured-inference 0.7.x 版本中尚未提供该枚举
 import unstructured_inference.constants as _uic  # noqa: E402
+from sympy import false
 
 if not hasattr(_uic, "IsExtracted"):
     class IsExtracted(Enum):
@@ -21,7 +22,7 @@ if not hasattr(_uic, "IsExtracted"):
     _uic.IsExtracted = IsExtracted
 
 from llama_index.core import Document
-from llama_index.readers.file import UnstructuredReader
+from unstructured.partition.pdf import partition_pdf
 
 
 class DocumentLoader:
@@ -34,7 +35,6 @@ class DocumentLoader:
     def __init__(self, input_dir: str = "./documents"):
         self.input_dir = Path(input_dir)
         os.makedirs(self.input_dir, exist_ok=True)
-        self._reader = UnstructuredReader()
 
     def _get_supported_files(self) -> List[Path]:
         """获取目录下所有支持的文件"""
@@ -49,30 +49,24 @@ class DocumentLoader:
         if suffix not in self.SUPPORTED_EXTENSIONS:
             raise ValueError(f"不支持的文件格式: {suffix}")
 
-        documents = self._reader.load_data(
-            file=file_path,
-            split_documents=True,
-            unstructured_kwargs={
-                "strategy": "hi_res",  # auto 自动选择策略，文字型 PDF 用 fast，扫描件用 hi_res
-                # 不使用任何需要 AI 模型的功能
-            },
-            extra_info={
+        elements = partition_pdf(
+            filename=str(file_path),
+            strategy="fast",  # 文字型 PDF 用 fast，扫描件用 hi_res
+        )
+
+        if not elements:
+            return []
+
+        # 将所有元素文本合并为一个 Document
+        full_text = "\n".join(el.text for el in elements if el.text)
+        doc = Document(
+            text=full_text,
+            metadata={
                 "file_name": file_path.name,
                 "file_path": str(file_path.resolve()),
                 "file_type": suffix.lstrip("."),
             },
         )
-
-        if not documents:
-            return []
-
-        # UnstructuredReader 已将所有元素合并为一个 Document
-        doc = documents[0]
-        doc.metadata.update({
-            "file_name": file_path.name,
-            "file_path": str(file_path.resolve()),
-            "file_type": suffix.lstrip("."),
-        })
         return [doc]
 
     def load_all(self) -> List[Document]:
