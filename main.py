@@ -3,7 +3,7 @@
 RAG 知识库 - 离线处理 CLI 入口
 
 模块划分:
-  - offline_processing: 离线处理（文档解析、文本分片、向量化、入库）→ CLI
+  - offline_processing: 离线处理（文档解析、按章分片、向量化、入库）→ CLI
   - realtime_response:  实时响应（用户提问、检索、返回回答）→ HTTP API (api_server.py)
 """
 
@@ -20,7 +20,6 @@ def cmd_ingest(args):
         documents_dir=args.documents_dir,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
-        chunk_strategy=args.strategy,
         embedding_backend=args.embedding_backend,
         table_name=args.table_name,
     )
@@ -57,11 +56,6 @@ def main():
     ingest_parser.add_argument(
         "--chunk_overlap", type=int, default=None,
         help=f"分片重叠量 (默认: {config.chunk.chunk_overlap})"
-    )
-    ingest_parser.add_argument(
-        "--strategy", default="sentence",
-        choices=["sentence", "token", "sentence_window", "chapter"],
-        help="分片策略 (默认: sentence)"
     )
     ingest_parser.add_argument(
         "--embedding_backend", default=None,
