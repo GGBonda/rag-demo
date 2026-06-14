@@ -10,15 +10,18 @@ else:
     ssl._create_default_https_context = _create_unverified_https_context
 
 from offline_processing.document_loader import DocumentLoader
+from offline_processing.chunker import Chunker
 
 loader = DocumentLoader(
     input_dir='/Users/shengjunhui/Downloads/rag_test_pdf',
-    chunk_size=10000,
-    chunk_overlap=0,
 )
 
-nodes = loader.load_all()
+parsedDocuments = loader.load_all()
 
-for i, node in enumerate(nodes):
-    print(f"=========================================================={i}, node length: {len(node.text)}")
-    print(node.text)
+chunker = Chunker(chunk_size=10000, chunk_overlap=0)
+
+chunks = chunker.chunk_elements(parsedDocuments[0])
+
+for i, chunk in enumerate(chunks):
+    print(f"=========================================================={i}, node length: {len(chunk.text)}")
+    print(chunk.text)

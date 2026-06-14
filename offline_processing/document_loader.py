@@ -1,13 +1,14 @@
 """
 RAG 知识库 - 文档加载器模块
-加载 PDF 并按章节边界拆分为 chunk
+加载 PDF 并解析为结构化元素
 """
 
 import os
 import re
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # Monkey-patch: unstructured 0.20+ 需要 IsExtracted 枚举，
 # 但 unstructured-inference 0.7.x 版本中尚未提供该枚举
@@ -21,10 +22,6 @@ if not hasattr(_uic, "IsExtracted"):
 
     _uic.IsExtracted = IsExtracted
 
-from llama_index.core import Document
-from llama_index.core.node_parser import SentenceSplitter
-
-from config import config
 
 # ------------------------------------------------------------------
 # 中文章节标题的兜底模式 —— 用于后处理阶段校正元素类型（Title ↔ NarrativeText）
@@ -43,22 +40,26 @@ _ZH_HEADING_PATTERNS = [
 _TITLE_MAX_LENGTH = 15
 
 
+@dataclass
+class ParsedDocument:
+    """单个 PDF 文件的解析结果"""
+    elements: list
+    """PDF 解析后的结构化元素列表"""
+    file_name: str
+    """文件名"""
+    file_path: str
+    """文件绝对路径"""
+
+
 class DocumentLoader:
-    """文档加载器，加载 PDF 并按最小章节边界拆分为 chunk"""
+    """文档加载器，加载 PDF 并解析为结构化元素"""
 
     SUPPORTED_EXTENSIONS = {
         ".pdf": "application/pdf",
     }
 
-    def __init__(
-        self,
-        input_dir: str = "./documents",
-        chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None,
-    ):
+    def __init__(self, input_dir: str = "./documents"):
         self.input_dir = Path(input_dir)
-        self.chunk_size = chunk_size or config.chunk.chunk_size
-        self.chunk_overlap = chunk_overlap or config.chunk.chunk_overlap
         os.makedirs(self.input_dir, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -72,42 +73,52 @@ class DocumentLoader:
             files.extend(self.input_dir.glob(f"**/*{ext}"))
         return sorted(files)
 
-    def load_all(self) -> List[Document]:
-        """加载目录下所有支持的文档，按章节拆分为 chunk"""
-        all_chunks = []
+    def load_all(self) -> List[ParsedDocument]:
+        """加载目录下所有支持的文档，返回 ParsedDocument 列表"""
+        results: List[ParsedDocument] = []
         files = self._get_supported_files()
 
         if not files:
             print(f"警告: 目录 '{self.input_dir}' 下未找到支持的文档文件")
             print(f"支持的格式: {', '.join(self.SUPPORTED_EXTENSIONS.keys())}")
-            return all_chunks
+            return results
 
         print(f"找到 {len(files)} 个文件待加载...")
 
         for file_path in files:
             try:
-                chunks = self._load_single_file(file_path)
-                all_chunks.extend(chunks)
-                print(f"  ✓ 已加载: {file_path.name} ({len(chunks)} 个章节 chunk)")
+                elements = self._load_single_file(file_path)
+                parsed = ParsedDocument(
+                    elements=elements,
+                    file_name=file_path.name,
+                    file_path=str(file_path.resolve()),
+                )
+                results.append(parsed)
+                print(f"  ✓ 已加载: {file_path.name} ({len(elements)} 个元素)")
             except Exception as e:
                 print(f"  ✗ 加载失败: {file_path.name} - {e}")
 
-        print(f"\n总共加载 {len(all_chunks)} 个章节 chunk")
-        return all_chunks
+        print(f"\n总共加载 {len(results)} 个文件")
+        return results
 
-    def load_file(self, file_path: str) -> List[Document]:
-        """加载单个指定文件，按章节拆分为 chunk"""
+    def load_file(self, file_path: str) -> ParsedDocument:
+        """加载单个指定文件，返回 ParsedDocument"""
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"文件不存在: {file_path}")
-        return self._load_single_file(path)
+        elements = self._load_single_file(path)
+        return ParsedDocument(
+            elements=elements,
+            file_name=path.name,
+            file_path=str(path.resolve()),
+        )
 
     # ------------------------------------------------------------------
-    # 章节拆分核心
+    # 文档解析核心
     # ------------------------------------------------------------------
 
-    def _load_single_file(self, file_path: Path) -> List[Document]:
-        """加载单个 PDF 文件，按最小章节边界拆分为 chunk 列表"""
+    def _load_single_file(self, file_path: Path) -> list:
+        """加载单个 PDF 文件，返回解析并校正后的元素列表"""
         suffix = file_path.suffix.lower()
         if suffix not in self.SUPPORTED_EXTENSIONS:
             raise ValueError(f"不支持的文件格式: {suffix}")
@@ -116,43 +127,7 @@ class DocumentLoader:
         elements = self._remove_headers_footers(elements)
         elements = self._correct_elements(elements)
 
-        if not elements:
-            return []
-
-        chunks = self._split_elements_by_title(elements)
-
-        result: List[Document] = []
-        for i, chunk in enumerate(chunks):
-            chunk_text = chunk.text.strip() if hasattr(chunk, "text") else str(chunk).strip()
-            if not chunk_text:
-                continue
-
-            first_line = chunk_text.split("\n", 1)[0].strip()
-            section_title = first_line[:80] if len(first_line) > 80 else first_line
-
-            chunk_doc = Document(
-                text=chunk_text,
-                metadata={
-                    "file_name": file_path.name,
-                    "file_path": str(file_path.resolve()),
-                    "file_type": suffix.lstrip("."),
-                    "section_index": i,
-                    "section_count": len(chunks),
-                    "section_title": section_title,
-                },
-            )
-
-            # 超大章节回退到句子级分片
-            if len(chunk_text) > self.chunk_size * 4:
-                sub_nodes = self._fallback_sentence_split(chunk_doc)
-                for node in sub_nodes:
-                    node.metadata["section_title"] = section_title
-                result.extend(sub_nodes)
-            else:
-                result.append(chunk_doc)
-
-        print(f"  [章节拆分] {file_path.name}: {len(result)} 个 chunk")
-        return result
+        return elements
 
     @staticmethod
     def _get_pdf_elements(file_path: str) -> list:
@@ -210,23 +185,3 @@ class DocumentLoader:
 
         return corrected
 
-    @staticmethod
-    def _split_elements_by_title(elements: list) -> list:
-        """按标题边界对元素进行分片，字符数量过大的章节先不管，只将字符数量过小的章节进行合并。"""
-        from unstructured.chunking.title import chunk_by_title
-
-        return chunk_by_title(
-            elements,
-            max_characters=100000,
-            new_after_n_chars=100000,
-            combine_text_under_n_chars=300,
-            overlap=0,
-        )
-
-    def _fallback_sentence_split(self, document: Document) -> List[Document]:
-        """章节过大时回退到句子级拆分"""
-        splitter = SentenceSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-        )
-        return splitter.get_nodes_from_documents([document])

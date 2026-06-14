@@ -1,9 +1,10 @@
 """
 离线处理模块 - 入库流水线
-编排完整的离线处理流程: 加载（含按章分片）→ 向量化 → 存储
+编排完整的离线处理流程: 加载 → 分片 → 向量化 → 存储
 """
 
 from .document_loader import DocumentLoader
+from .chunker import Chunker
 from .embedding_engine import EmbeddingEngine
 from .vector_store import VectorStoreManager
 
@@ -21,8 +22,8 @@ class OfflinePipeline:
     ):
         self.documents_dir = documents_dir
 
-        self.loader = DocumentLoader(
-            input_dir=documents_dir,
+        self.loader = DocumentLoader(input_dir=documents_dir)
+        self.chunker = Chunker(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
@@ -34,7 +35,7 @@ class OfflinePipeline:
 
     def ingest(self, rebuild: bool = False) -> None:
         """
-        执行文档入库：加载（含按章分片）→ 向量化 → 存入 PGvector
+        执行文档入库：加载 → 分片 → 向量化 → 存入 PGvector
 
         Args:
             rebuild: 是否重建索引（清空旧数据）
@@ -47,19 +48,36 @@ class OfflinePipeline:
             self.vector_store.clear(confirm=True)
 
         # Step 1: 初始化数据库
-        print("\n[1/3] 初始化数据库...")
+        print("\n[1/4] 初始化数据库...")
         self.vector_store.setup()
 
-        # Step 2: 加载文档并按章节分片
-        print("\n[2/3] 加载文档并按章节分片...")
-        nodes = self.loader.load_all()
+        # Step 2: 加载文档
+        print("\n[2/4] 加载文档...")
+        file_data = self.loader.load_all()
 
-        if not nodes:
+        if not file_data:
             print("没有文档需要处理，入库流程终止")
             return
 
-        # Step 3: 向量化 + 写入数据库
-        print(f"\n[3/3] 向量化并写入数据库...")
+        # Step 3: 按章节分片
+        print("\n[3/4] 按章节分片...")
+        nodes = []
+        for doc in file_data:
+            chunks = self.chunker.chunk_elements(
+                doc.elements,
+                file_name=doc.file_name,
+                file_path=doc.file_path,
+            )
+            nodes.extend(chunks)
+
+        if not nodes:
+            print("分片后没有有效内容，入库流程终止")
+            return
+
+        print(f"\n总共生成 {len(nodes)} 个 chunk")
+
+        # Step 4: 向量化 + 写入数据库
+        print(f"\n[4/4] 向量化并写入数据库...")
         self.vector_store.build_index(nodes)
 
         # 输出统计
