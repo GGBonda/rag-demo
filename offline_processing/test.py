@@ -18,7 +18,7 @@ loader = DocumentLoader(
 
 parsedDocuments = loader.load_all()
 
-chunker = Chunker(chunk_size=10000, chunk_overlap=0)
+chunker = Chunker(chunk_size=1000, chunk_overlap=0)
 
 chunks = chunker.chunk_elements(parsedDocuments[0])
 

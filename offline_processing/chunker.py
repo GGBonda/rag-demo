@@ -28,9 +28,7 @@ class Chunker:
     # 公共 API
     # ------------------------------------------------------------------
 
-    def chunk_elements(
-        self, parsed_document:ParsedDocument
-    ) -> List[Document]:
+    def chunk_elements(self, parsed_document:ParsedDocument) -> List[Document]:
         """将元素列表按章节边界拆分为 Document chunk 列表"""
         if not parsed_document.elements:
             return []
@@ -61,7 +59,7 @@ class Chunker:
             )
 
             # 超大章节回退到句子级分片
-            if len(chunk_text) > self.chunk_size * 4:
+            if len(chunk_text) > self.chunk_size:
                 sub_nodes = self._fallback_sentence_split(chunk_doc)
                 for node in sub_nodes:
                     node.metadata["section_title"] = section_title

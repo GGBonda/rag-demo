@@ -167,21 +167,22 @@ class DocumentLoader:
         corrected: list = []
         for elem in elements:
             elem_text = str(elem.text).strip()
-            if not elem_text:
-                continue
 
+            if isinstance(elem, Title) and (len(elem_text) > _TITLE_MAX_LENGTH or not cls._is_heading(elem_text)):
+                corrected.append(NarrativeText(elem_text))
+            else:
+                corrected.append(elem)
+
+            """
             if cls._is_heading(elem_text):
                 if not isinstance(elem, Title):
                     corrected.append(Title(elem_text))
                 else:
                     corrected.append(elem)
                 continue
+            """
 
-            if isinstance(elem, Title) and len(elem_text) > _TITLE_MAX_LENGTH:
-                corrected.append(NarrativeText(elem_text))
-                continue
 
-            corrected.append(elem)
 
         return corrected
 
