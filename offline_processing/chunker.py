@@ -58,9 +58,9 @@ class Chunker:
                 },
             )
 
-            # 超大章节回退到句子级分片
+            # 超大章节回退到段落级分片
             if len(chunk_text) > self.chunk_size:
-                sub_nodes = self._fallback_sentence_split(chunk_doc)
+                sub_nodes = self._fallback_paragraph_split(chunk_doc)
                 for node in sub_nodes:
                     node.metadata["section_title"] = section_title
                 result.extend(sub_nodes)
@@ -87,10 +87,54 @@ class Chunker:
             overlap=0,
         )
 
-    def _fallback_sentence_split(self, document: Document) -> List[Document]:
-        """章节过大时回退到句子级拆分"""
-        splitter = SentenceSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-        )
-        return splitter.get_nodes_from_documents([document])
+    def _fallback_paragraph_split(self, document: Document) -> List[Document]:
+        """章节过大时回退到按段落拆分"""
+        text = document.text
+        raw_paragraphs = text.split("\n\n")
+        paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
+
+        if not paragraphs:
+            raw_paragraphs = text.split("\n")
+            paragraphs = [p.strip() for p in raw_paragraphs if p.strip()]
+
+        if not paragraphs:
+            return [document]
+
+        chunks: List[str] = []
+        current_chunk = ""
+        for para in paragraphs:
+            # 单个段落超过 chunk_size，对该段落回退到句子级拆分
+            if len(para) > self.chunk_size:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = ""
+                splitter = SentenceSplitter(
+                    chunk_size=self.chunk_size,
+                    chunk_overlap=self.chunk_overlap,
+                )
+                para_doc = Document(text=para, metadata=document.metadata)
+                sub_nodes = splitter.get_nodes_from_documents([para_doc])
+                chunks.extend([node.text for node in sub_nodes])
+                continue
+
+            if len(current_chunk) + len(para) + 2 <= self.chunk_size:
+                if current_chunk:
+                    current_chunk += "\n\n" + para
+                else:
+                    current_chunk = para
+            else:
+                chunks.append(current_chunk)
+                current_chunk = para
+
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        result: List[Document] = []
+        for chunk_text in chunks:
+            chunk_doc = Document(
+                text=chunk_text,
+                metadata={**document.metadata},
+            )
+            result.append(chunk_doc)
+
+        return result
