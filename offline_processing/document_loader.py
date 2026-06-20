@@ -131,13 +131,15 @@ class DocumentLoader:
 
     @staticmethod
     def _get_pdf_elements(file_path: str) -> list:
-        """使用 unstructured.partition.auto.partition 解析 PDF，返回 Element 列表"""
-        from unstructured.partition.auto import partition
+        from unstructured.partition.pdf import partition_pdf
 
-        elements = partition(
+        elements = partition_pdf(
             filename=file_path,
             strategy="fast", # auto fast hi_res
             include_page_breaks=False,
+            languages=['chi_sim', 'eng'],  # 指定识别中英文
+            infer_table_structure=True,  # 如需提取表格可开启此选项[citation:2]
+            encoding='utf-8'
         )
         return list(elements) if elements else []
 
