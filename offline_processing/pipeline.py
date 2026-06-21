@@ -63,8 +63,8 @@ class OfflinePipeline:
         print("\n[3/4] 按章节分片...")
         nodes = []
         for doc in file_data:
-            chunks = self.chunker.chunk_elements(
-                doc.elements,
+            chunks = self.chunker.chunk_markdown(
+                doc.markdown_text,
                 file_name=doc.file_name,
                 file_path=doc.file_path,
             )

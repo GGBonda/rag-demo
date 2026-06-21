@@ -1,6 +1,6 @@
 """
 RAG 知识库 - 文档加载器模块
-加载 PDF 并解析为结构化元素
+加载 PDF 并解析为 Markdown 格式
 """
 
 import os
@@ -43,8 +43,8 @@ _TITLE_MAX_LENGTH = 15
 @dataclass
 class ParsedDocument:
     """单个 PDF 文件的解析结果"""
-    elements: list
-    """PDF 解析后的结构化元素列表"""
+    markdown_text: str
+    """PDF 解析后的 Markdown 文本"""
     file_name: str
     """文件名"""
     file_path: str
@@ -52,7 +52,7 @@ class ParsedDocument:
 
 
 class DocumentLoader:
-    """文档加载器，加载 PDF 并解析为结构化元素"""
+    """文档加载器，加载 PDF 并解析为 Markdown 格式"""
 
     SUPPORTED_EXTENSIONS = {
         ".pdf": "application/pdf",
@@ -87,14 +87,14 @@ class DocumentLoader:
 
         for file_path in files:
             try:
-                elements = self._load_single_file(file_path)
+                markdown_text = self._load_single_file(file_path)
                 parsed = ParsedDocument(
-                    elements=elements,
+                    markdown_text=markdown_text,
                     file_name=file_path.name,
                     file_path=str(file_path.resolve()),
                 )
                 results.append(parsed)
-                print(f"  ✓ 已加载: {file_path.name} ({len(elements)} 个元素)")
+                print(f"  ✓ 已加载: {file_path.name} ({len(markdown_text)} 字符)")
             except Exception as e:
                 print(f"  ✗ 加载失败: {file_path.name} - {e}")
 
@@ -106,9 +106,9 @@ class DocumentLoader:
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"文件不存在: {file_path}")
-        elements = self._load_single_file(path)
+        markdown_text = self._load_single_file(path)
         return ParsedDocument(
-            elements=elements,
+            markdown_text=markdown_text,
             file_name=path.name,
             file_path=str(path.resolve()),
         )
@@ -117,8 +117,8 @@ class DocumentLoader:
     # 文档解析核心
     # ------------------------------------------------------------------
 
-    def _load_single_file(self, file_path: Path) -> list:
-        """加载单个 PDF 文件，返回解析并校正后的元素列表"""
+    def _load_single_file(self, file_path: Path) -> str:
+        """加载单个 PDF 文件，返回解析后的 Markdown 文本"""
         suffix = file_path.suffix.lower()
         if suffix not in self.SUPPORTED_EXTENSIONS:
             raise ValueError(f"不支持的文件格式: {suffix}")
@@ -126,8 +126,9 @@ class DocumentLoader:
         elements = self._get_pdf_elements(str(file_path))
         elements = self._remove_headers_footers(elements)
         elements = self._correct_elements(elements)
+        markdown_text = self._elements_to_markdown(elements)
 
-        return elements
+        return markdown_text
 
     @staticmethod
     def _get_pdf_elements(file_path: str) -> list:
@@ -135,11 +136,11 @@ class DocumentLoader:
 
         elements = partition_pdf(
             filename=file_path,
-            strategy="fast", # auto fast hi_res
+            strategy="hi_res",
             include_page_breaks=False,
-            languages=['chi_sim', 'eng'],  # 指定识别中英文
-            infer_table_structure=True,  # 如需提取表格可开启此选项[citation:2]
-            encoding='utf-8'
+            languages=['chi_sim', 'eng'],
+            infer_table_structure=True,
+            encoding='utf-8',
         )
         return list(elements) if elements else []
 
@@ -149,6 +150,17 @@ class DocumentLoader:
         from unstructured.documents.elements import Header, Footer
 
         return [e for e in elements if not isinstance(e, (Header, Footer))]
+
+    @staticmethod
+    def _elements_to_markdown(elements: list) -> str:
+        """将结构化元素列表转换为 Markdown 文本"""
+        from unstructured.staging.base import elements_to_md
+
+        return elements_to_md(elements)
+
+    # ------------------------------------------------------------------
+    # 元素类型校正
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _is_heading(text: str) -> bool:
@@ -163,28 +175,19 @@ class DocumentLoader:
 
     @classmethod
     def _correct_elements(cls, elements: list) -> list:
-        """校正元素类型：中文标题提升为 Title，误判的长文本降级为 NarrativeText"""
+        """校正元素类型：误判为 Title 的长文本降级为 NarrativeText"""
         from unstructured.documents.elements import Title, NarrativeText
 
         corrected: list = []
         for elem in elements:
             elem_text = str(elem.text).strip()
 
-            if isinstance(elem, Title) and (len(elem_text) > _TITLE_MAX_LENGTH or not cls._is_heading(elem_text)):
+            if isinstance(elem, Title) and (
+                len(elem_text) > _TITLE_MAX_LENGTH
+                or not cls._is_heading(elem_text)
+            ):
                 corrected.append(NarrativeText(elem_text))
             else:
                 corrected.append(elem)
 
-            """
-            if cls._is_heading(elem_text):
-                if not isinstance(elem, Title):
-                    corrected.append(Title(elem_text))
-                else:
-                    corrected.append(elem)
-                continue
-            """
-
-
-
         return corrected
-

@@ -20,7 +20,12 @@ parsedDocuments = loader.load_all()
 
 chunker = Chunker(chunk_size=1000, chunk_overlap=0)
 
-chunks = chunker.chunk_elements(parsedDocuments[0])
+doc = parsedDocuments[0]
+chunks = chunker.chunk_markdown(
+    doc.markdown_text,
+    file_name=doc.file_name,
+    file_path=doc.file_path,
+)
 
 for i, chunk in enumerate(chunks):
     print(f"=========================================================={i}, node length: {len(chunk.text)}")
