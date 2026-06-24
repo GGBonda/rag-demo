@@ -28,7 +28,7 @@ class Chunker:
             soft_max_len=self.chunk_size,
             hard_max_len=self.chunk_size * 4,
             heading_based_chunking=True,
-            detect_headers_footers=False,  # document_loader 已处理
+            detect_headers_footers=False,  # 文档加载器已处理
             remove_duplicates=True,
         )
 

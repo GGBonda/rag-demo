@@ -1,0 +1,20 @@
+{
+    "device-mode": "cpu",
+    "models-dir": "/Users/shengjunhui/.cache/modelscope/hub/models/OpenDataLab/PDF-Extract-Kit-1___0/models/",
+    "layoutreader-model-dir": "",
+    "table-config": {
+        "model": "RAPID_TABLE",
+        "enable": false,
+        "max_time": 400
+    },
+    "layout-config": {
+        "model": "LAYOUTLMv3"
+    },
+    "formula-config": {
+        "mfd_model": "YOLO_V8_MFD",
+        "mfr_model": "UniMerNet_v2_Small",
+        "enable": false
+    },
+    "llm-aided-config": null,
+    "latex-delimiter-config": null
+}

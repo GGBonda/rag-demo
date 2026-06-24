@@ -3,7 +3,7 @@
 编排完整的离线处理流程: 加载 → 分片 → 向量化 → 存储
 """
 
-from .document_loader import DocumentLoader
+from .document_loader_manager import DocumentLoaderManager
 from .chunker import Chunker
 from .embedding_engine import EmbeddingEngine
 from .vector_store import VectorStoreManager
@@ -19,10 +19,16 @@ class OfflinePipeline:
         chunk_overlap: int | None = None,
         embedding_backend: str | None = None,
         table_name: str | None = None,
+        loader_backend: str = "unstructured",
+        **loader_kwargs,
     ):
         self.documents_dir = documents_dir
 
-        self.loader = DocumentLoader(input_dir=documents_dir)
+        self.loader = DocumentLoaderManager(
+            backend=loader_backend,
+            input_dir=documents_dir,
+            **loader_kwargs,
+        )
         self.chunker = Chunker(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,

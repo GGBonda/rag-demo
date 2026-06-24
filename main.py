@@ -16,12 +16,18 @@ from config import config
 
 def cmd_ingest(args):
     """子命令: 文档入库（离线处理）"""
+    loader_kwargs = {}
+    if hasattr(args, "mineru_method") and args.mineru_method:
+        loader_kwargs["method"] = args.mineru_method
+
     pipeline = OfflinePipeline(
         documents_dir=args.documents_dir,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         embedding_backend=args.embedding_backend,
         table_name=args.table_name,
+        loader_backend=args.loader_backend,
+        **loader_kwargs,
     )
     pipeline.ingest(rebuild=args.rebuild)
 
@@ -69,6 +75,16 @@ def main():
     ingest_parser.add_argument(
         "--rebuild", action="store_true",
         help="重建索引（清空旧数据）"
+    )
+    ingest_parser.add_argument(
+        "--loader_backend", default="unstructured",
+        choices=["unstructured", "mineru"],
+        help="文档加载后端 (默认: unstructured)"
+    )
+    ingest_parser.add_argument(
+        "--mineru_method", default=None,
+        choices=["auto", "txt", "ocr"],
+        help="MinerU 解析方式，仅 --loader_backend=mineru 时生效 (默认: auto)"
     )
     ingest_parser.set_defaults(func=cmd_ingest)
 
