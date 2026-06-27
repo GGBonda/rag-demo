@@ -301,7 +301,6 @@ dependencies:
       - kiwisolver==1.5.0
       - llama-index-vector-stores-postgres==0.8.1
       - loguru==0.7.3
-      - magic-pdf==1.3.12
       - markdown-chunker==0.1.3
       - markdown-it-py==4.2.0
       - matplotlib==3.11.0
