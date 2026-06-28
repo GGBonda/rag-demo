@@ -14,7 +14,7 @@ class OfflinePipeline:
 
     def __init__(
         self,
-        documents_dir: str = "./documents",
+        file_path: str | None = None,
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
         embedding_backend: str | None = None,
@@ -22,11 +22,11 @@ class OfflinePipeline:
         loader_backend: str = "unstructured",
         **loader_kwargs,
     ):
-        self.documents_dir = documents_dir
+        self.file_path = file_path
 
         self.loader = DocumentLoaderManager(
             backend=loader_backend,
-            input_dir=documents_dir,
+            file_path=file_path,
             **loader_kwargs,
         )
         self.chunker = Chunker(
@@ -59,22 +59,19 @@ class OfflinePipeline:
 
         # Step 2: 加载文档
         print("\n[2/4] 加载文档...")
-        file_data = self.loader.load_all()
+        doc = self.loader.load()
 
-        if not file_data:
-            print("没有文档需要处理，入库流程终止")
+        if doc is None:
+            print("文档加载失败，入库流程终止")
             return
 
         # Step 3: 按章节分片
         print("\n[3/4] 按章节分片...")
-        nodes = []
-        for doc in file_data:
-            chunks = self.chunker.chunk_markdown(
-                doc.markdown_text,
-                file_name=doc.file_name,
-                file_path=doc.file_path,
-            )
-            nodes.extend(chunks)
+        nodes = self.chunker.chunk_markdown(
+            doc.markdown_text,
+            file_name=doc.file_name,
+            file_path=doc.file_path,
+        )
 
         if not nodes:
             print("分片后没有有效内容，入库流程终止")

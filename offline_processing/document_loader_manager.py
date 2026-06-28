@@ -4,9 +4,6 @@ RAG 知识库 - 文档加载器管理器
 通过传入参数自由选择使用哪种加载器解析 PDF 文件。
 """
 
-from pathlib import Path
-from typing import List
-
 from .document_loader_unstructured import DocumentLoader, ParsedDocument
 from .document_loader_mineru import MinerUDocumentLoader
 
@@ -17,17 +14,17 @@ class DocumentLoaderManager:
     用法示例::
 
         # 使用 Unstructured 后端
-        manager = DocumentLoaderManager(backend="unstructured", input_dir="./documents")
-        docs = manager.load_all()
+        manager = DocumentLoaderManager(backend="unstructured", file_path="./doc.pdf")
+        doc = manager.load()
 
         # 使用 MinerU 后端
-        manager = DocumentLoaderManager(backend="mineru", input_dir="./documents")
-        docs = manager.load_all()
+        manager = DocumentLoaderManager(backend="mineru", file_path="./doc.pdf")
+        doc = manager.load()
 
         # MinerU 指定 OCR 模式
         manager = DocumentLoaderManager(
             backend="mineru",
-            input_dir="./documents",
+            file_path="./doc.pdf",
             method="ocr",
         )
     """
@@ -40,13 +37,13 @@ class DocumentLoaderManager:
     def __init__(
         self,
         backend: str = "unstructured",
-        input_dir: str = "./documents",
+        file_path: str | None = None,
         **backend_kwargs,
     ):
         """
         Args:
             backend: 文档加载后端 - "unstructured" 或 "mineru"
-            input_dir: 文档目录路径
+            file_path: PDF 文件路径
             **backend_kwargs: 传递给具体加载后端的额外参数。
                 对于 MinerU，支持 ``method``（"auto"/"txt"/"ocr"）。
         """
@@ -58,10 +55,10 @@ class DocumentLoaderManager:
             )
 
         self.backend = backend_lower
-        self.input_dir = Path(input_dir)
+        self.file_path = file_path
 
         loader_cls = self.SUPPORTED_BACKENDS[backend_lower]
-        self._loader = loader_cls(input_dir=str(input_dir), **backend_kwargs)
+        self._loader = loader_cls(file_path=file_path, **backend_kwargs)
 
     @property
     def loader(self):
@@ -73,10 +70,6 @@ class DocumentLoaderManager:
         """代理到当前加载器的支持格式"""
         return self._loader.SUPPORTED_EXTENSIONS
 
-    def load_all(self) -> List[ParsedDocument]:
-        """加载目录下所有支持的文档"""
-        return self._loader.load_all()
-
-    def load_file(self, file_path: str) -> ParsedDocument:
-        """加载单个指定文件"""
-        return self._loader.load_file(file_path)
+    def load(self) -> ParsedDocument:
+        """加载指定的 PDF 文件"""
+        return self._loader.load()

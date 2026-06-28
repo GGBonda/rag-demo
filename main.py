@@ -19,9 +19,13 @@ def cmd_ingest(args):
     loader_kwargs = {}
     if hasattr(args, "mineru_method") and args.mineru_method:
         loader_kwargs["method"] = args.mineru_method
+    if args.start_page is not None:
+        loader_kwargs["start_page"] = args.start_page
+    if args.end_page is not None:
+        loader_kwargs["end_page"] = args.end_page
 
     pipeline = OfflinePipeline(
-        documents_dir=args.documents_dir,
+        file_path=args.file,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         embedding_backend=args.embedding_backend,
@@ -39,7 +43,7 @@ def main():
         epilog="""
 示例:
   # 文档入库
-  python main.py ingest --documents_dir ./my_docs
+  python main.py ingest --file ./my_docs/document.pdf
 
   # 启动实时响应 API 服务
   uvicorn api_server:app --host 0.0.0.0 --port 8000 --reload
@@ -53,7 +57,7 @@ def main():
     # ---- ingest 子命令 ----
     ingest_parser = subparsers.add_parser("ingest", help="文档入库（离线处理）")
     ingest_parser.add_argument(
-        "--documents_dir", default="./documents", help="文档目录"
+        "--file", required=True, help="PDF 文件路径"
     )
     ingest_parser.add_argument(
         "--chunk_size", type=int, default=None,
@@ -85,6 +89,14 @@ def main():
         "--mineru_method", default=None,
         choices=["auto", "txt", "ocr"],
         help="MinerU 解析方式，仅 --loader_backend=mineru 时生效 (默认: auto)"
+    )
+    ingest_parser.add_argument(
+        "--start_page", type=int, default=None,
+        help="起始页码（1-indexed，含），默认从第一页开始"
+    )
+    ingest_parser.add_argument(
+        "--end_page", type=int, default=None,
+        help="结束页码（1-indexed，含），默认到最后一页"
     )
     ingest_parser.set_defaults(func=cmd_ingest)
 

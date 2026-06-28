@@ -3,12 +3,10 @@ RAG 知识库 - 文档加载器模块
 加载 PDF 并解析为 Markdown 格式
 """
 
-import os
 import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List
 
 # Monkey-patch: unstructured 0.20+ 需要 IsExtracted 枚举，
 # 但 unstructured-inference 0.7.x 版本中尚未提供该枚举
@@ -52,60 +50,37 @@ class ParsedDocument:
 
 
 class DocumentLoader:
-    """文档加载器，加载 PDF 并解析为 Markdown 格式"""
+    """文档加载器，加载单个 PDF 并解析为 Markdown 格式"""
 
     SUPPORTED_EXTENSIONS = {
         ".pdf": "application/pdf",
     }
 
-    def __init__(self, input_dir: str = "./documents"):
-        self.input_dir = Path(input_dir)
-        os.makedirs(self.input_dir, exist_ok=True)
+    def __init__(
+        self,
+        file_path: str | None = None,
+        start_page: int | None = None,
+        end_page: int | None = None,
+    ):
+        """
+        Args:
+            file_path: PDF 文件路径
+            start_page: 起始页码（1-indexed，含），None 表示从第一页开始
+            end_page: 结束页码（1-indexed，含），None 表示到最后一页
+        """
+        self.file_path = Path(file_path) if file_path else None
+        self.start_page = start_page
+        self.end_page = end_page
 
     # ------------------------------------------------------------------
     # 公共 API
     # ------------------------------------------------------------------
 
-    def _get_supported_files(self) -> List[Path]:
-        """获取目录下所有支持的文件"""
-        files = []
-        for ext in self.SUPPORTED_EXTENSIONS:
-            files.extend(self.input_dir.glob(f"**/*{ext}"))
-        return sorted(files)
-
-    def load_all(self) -> List[ParsedDocument]:
-        """加载目录下所有支持的文档，返回 ParsedDocument 列表"""
-        results: List[ParsedDocument] = []
-        files = self._get_supported_files()
-
-        if not files:
-            print(f"警告: 目录 '{self.input_dir}' 下未找到支持的文档文件")
-            print(f"支持的格式: {', '.join(self.SUPPORTED_EXTENSIONS.keys())}")
-            return results
-
-        print(f"找到 {len(files)} 个文件待加载...")
-
-        for file_path in files:
-            try:
-                markdown_text = self._load_single_file(file_path)
-                parsed = ParsedDocument(
-                    markdown_text=markdown_text,
-                    file_name=file_path.name,
-                    file_path=str(file_path.resolve()),
-                )
-                results.append(parsed)
-                print(f"  ✓ 已加载: {file_path.name} ({len(markdown_text)} 字符)")
-            except Exception as e:
-                print(f"  ✗ 加载失败: {file_path.name} - {e}")
-
-        print(f"\n总共加载 {len(results)} 个文件")
-        return results
-
-    def load_file(self, file_path: str) -> ParsedDocument:
-        """加载单个指定文件，返回 ParsedDocument"""
-        path = Path(file_path)
+    def load(self, file_path: str | None = None) -> ParsedDocument:
+        """加载指定 PDF 文件，返回 ParsedDocument"""
+        path = Path(file_path or self.file_path)
         if not path.exists():
-            raise FileNotFoundError(f"文件不存在: {file_path}")
+            raise FileNotFoundError(f"文件不存在: {path}")
         markdown_text = self._load_single_file(path)
         return ParsedDocument(
             markdown_text=markdown_text,
@@ -124,6 +99,7 @@ class DocumentLoader:
             raise ValueError(f"不支持的文件格式: {suffix}")
 
         elements = self._get_pdf_elements(str(file_path))
+        elements = self._filter_by_page_range(elements)
         elements = self._remove_headers_footers(elements)
         elements = self._correct_elements(elements)
         markdown_text = self._elements_to_markdown(elements)
@@ -143,6 +119,24 @@ class DocumentLoader:
             encoding='utf-8',
         )
         return list(elements) if elements else []
+
+    def _filter_by_page_range(self, elements: list) -> list:
+        """按页码范围过滤元素"""
+        if self.start_page is None and self.end_page is None:
+            return elements
+        filtered = []
+        for e in elements:
+            page = getattr(e.metadata, "page_number", None)
+            if page is None:
+                # 元素无页码信息时保留
+                filtered.append(e)
+            elif self.start_page is not None and page < self.start_page:
+                continue
+            elif self.end_page is not None and page > self.end_page:
+                continue
+            else:
+                filtered.append(e)
+        return filtered
 
     @staticmethod
     def _remove_headers_footers(elements: list) -> list:

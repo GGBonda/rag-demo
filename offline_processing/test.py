@@ -10,18 +10,16 @@ else:
     ssl._create_default_https_context = _create_unverified_https_context
 
 from offline_processing.document_loader_manager import DocumentLoaderManager
-from offline_processing.document_loader_unstructured import DocumentLoader
 from offline_processing.chunker import Chunker
 
 
 if __name__ == '__main__':
-    manager = DocumentLoaderManager(backend="mineru", input_dir="/Users/shengjunhui/Downloads/rag_test_pdf")
+    manager = DocumentLoaderManager(backend="mineru", file_path="/Users/shengjunhui/Downloads/rag_test_pdf/阿里开发规范.pdf", start_page=3)
 
-    parsedDocuments = manager.load_all()
+    doc = manager.load()
 
     chunker = Chunker(chunk_size=1000, chunk_overlap=0)
 
-    doc = parsedDocuments[0]
     chunks = chunker.chunk_markdown(
         doc.markdown_text,
         file_name=doc.file_name,

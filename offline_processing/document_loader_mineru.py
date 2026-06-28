@@ -6,13 +6,12 @@ RAG 知识库 - MinerU 文档加载器模块
 import os
 import tempfile
 from pathlib import Path
-from typing import List
 
 from .document_loader_unstructured import ParsedDocument
 
 
 class MinerUDocumentLoader:
-    """使用 MinerU pipeline 引擎的文档加载器，加载 PDF 并解析为 Markdown 格式"""
+    """使用 MinerU pipeline 引擎的文档加载器，加载单个 PDF 并解析为 Markdown 格式"""
 
     SUPPORTED_EXTENSIONS = {
         ".pdf": "application/pdf",
@@ -20,24 +19,29 @@ class MinerUDocumentLoader:
 
     def __init__(
         self,
-        input_dir: str = "./documents",
+        file_path: str | None = None,
         method: str = "auto",
         output_dir: str | None = None,
         lang: str = "ch",
+        start_page: int | None = None,
+        end_page: int | None = None,
     ):
         """
         Args:
-            input_dir: 文档目录路径
+            file_path: PDF 文件路径
             method: 解析方式 - "auto"（自动选择）、"txt"（文本模式）、"ocr"（OCR 模式）
             output_dir: 中间文件输出目录，默认使用临时目录
             lang: 文档语言代码，默认 "ch"（中文）
+            start_page: 起始页码（1-indexed，含），None 表示从第一页开始
+            end_page: 结束页码（1-indexed，含），None 表示到最后一页
         """
-        self.input_dir = Path(input_dir)
+        self.file_path = Path(file_path) if file_path else None
         self.method = method
         self.lang = lang
+        self.start_page = start_page
+        self.end_page = end_page
         self._output_dir = output_dir
         self._temp_dir: tempfile.TemporaryDirectory | None = None
-        os.makedirs(self.input_dir, exist_ok=True)
 
         if method not in ("auto", "txt", "ocr"):
             raise ValueError(f"不支持的解析方式: {method}，可选值: auto, txt, ocr")
@@ -55,46 +59,11 @@ class MinerUDocumentLoader:
     # 公共 API
     # ------------------------------------------------------------------
 
-    def _get_supported_files(self) -> List[Path]:
-        """获取目录下所有支持的文件"""
-        files = []
-        for ext in self.SUPPORTED_EXTENSIONS:
-            files.extend(self.input_dir.glob(f"**/*{ext}"))
-        return sorted(files)
-
-    def load_all(self) -> List[ParsedDocument]:
-        """加载目录下所有支持的文档，返回 ParsedDocument 列表"""
-        results: List[ParsedDocument] = []
-        files = self._get_supported_files()
-
-        if not files:
-            print(f"警告: 目录 '{self.input_dir}' 下未找到支持的文档文件")
-            print(f"支持的格式: {', '.join(self.SUPPORTED_EXTENSIONS.keys())}")
-            return results
-
-        print(f"找到 {len(files)} 个文件待加载...")
-
-        for file_path in files:
-            try:
-                markdown_text = self._load_single_file(file_path)
-                parsed = ParsedDocument(
-                    markdown_text=markdown_text,
-                    file_name=file_path.name,
-                    file_path=str(file_path.resolve()),
-                )
-                results.append(parsed)
-                print(f"  ✓ 已加载: {file_path.name} ({len(markdown_text)} 字符)")
-            except Exception as e:
-                print(f"  ✗ 加载失败: {file_path.name} - {e}")
-
-        print(f"\n总共加载 {len(results)} 个文件")
-        return results
-
-    def load_file(self, file_path: str) -> ParsedDocument:
-        """加载单个指定文件，返回 ParsedDocument"""
-        path = Path(file_path)
+    def load(self, file_path: str | None = None) -> ParsedDocument:
+        """加载指定 PDF 文件，返回 ParsedDocument"""
+        path = Path(file_path or self.file_path)
         if not path.exists():
-            raise FileNotFoundError(f"文件不存在: {file_path}")
+            raise FileNotFoundError(f"文件不存在: {path}")
         markdown_text = self._load_single_file(path)
         return ParsedDocument(
             markdown_text=markdown_text,
@@ -132,6 +101,8 @@ class MinerUDocumentLoader:
             p_lang_list=[self.lang],
             backend="pipeline",
             parse_method=self.method,
+            start_page_id=self.start_page,
+            end_page_id=self.end_page,
             f_draw_layout_bbox=False,
             f_draw_span_bbox=False,
             f_dump_md=True,
