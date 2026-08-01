@@ -35,21 +35,24 @@ class ParagraphChunkDescriptionGenerator:
     }
 
     def __init__(self):
-        self.model = config.llm.openai_flash_model.strip()
-        if not self.model:
-            raise ValueError("未配置 OPENAI_FLASH_MODEL 环境变量")
+        self.text_model = config.llm.openai_pro_model.strip()
+        if not self.text_model:
+            raise ValueError("未配置 OPENAI_PRO_MODEL 环境变量")
 
-        resolved_api_key = config.llm.openai_api_key
-        if not resolved_api_key:
-            raise ValueError("未配置 OPENAI_API_KEY 环境变量")
+        self.vision_model = config.vision_llm.openai_model.strip()
+        if not self.vision_model:
+            raise ValueError("未配置 OPENAI_VISUAL_MODEL 环境变量")
 
-        from openai import OpenAI
-
-        client_options = {"api_key": resolved_api_key}
-        resolved_base_url = config.llm.openai_base_url
-        if resolved_base_url:
-            client_options["base_url"] = resolved_base_url
-        self._client = OpenAI(**client_options)
+        self._text_client = self._create_client(
+            api_key=config.llm.openai_api_key,
+            base_url=config.llm.openai_base_url,
+            api_key_name="OPENAI_API_KEY",
+        )
+        self._vision_client = self._create_client(
+            api_key=config.vision_llm.openai_api_key,
+            base_url=config.vision_llm.openai_base_url,
+            api_key_name="OPENAI_VISUAL_API_KEY",
+        )
 
     def generate_descriptions(self, chunks: list[ParagraphChunk]) -> None:
         """原地为 table、image、code 类型的分片生成 ai_desc_text。"""
@@ -57,8 +60,15 @@ class ParagraphChunkDescriptionGenerator:
             if chunk.type not in self.SUPPORTED_TYPES or not chunk.text.strip():
                 continue
 
-            response = self._client.chat.completions.create(
-                model=self.model,
+            if chunk.type == "image":
+                client = self._vision_client
+                model = self.vision_model
+            else:
+                client = self._text_client
+                model = self.text_model
+
+            response = client.chat.completions.create(
+                model=model,
                 messages=[
                     {
                         "role": "system",
@@ -77,6 +87,20 @@ class ParagraphChunkDescriptionGenerator:
             if not description or not description.strip():
                 raise RuntimeError(f"模型未返回 {chunk.type} 分片的描述")
             chunk.ai_desc_text = description.strip()[:500]
+
+    @staticmethod
+    def _create_client(api_key: str, base_url: str, api_key_name: str):
+        resolved_api_key = api_key.strip()
+        if not resolved_api_key:
+            raise ValueError(f"未配置 {api_key_name} 环境变量")
+
+        from openai import OpenAI
+
+        client_options = {"api_key": resolved_api_key}
+        resolved_base_url = base_url.strip()
+        if resolved_base_url:
+            client_options["base_url"] = resolved_base_url
+        return OpenAI(**client_options)
 
     def _build_user_content(self, chunk: ParagraphChunk) -> str | list[dict]:
         prompt = self._TYPE_PROMPTS[chunk.type]

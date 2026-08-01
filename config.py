@@ -34,6 +34,14 @@ class LLMConfig:
 
 
 @dataclass
+class VisionLLMConfig:
+    """识图大模型配置"""
+    openai_api_key: str = os.getenv("OPENAI_VISUAL_API_KEY", "")
+    openai_base_url: str = os.getenv("OPENAI_VISUAL_BASE_URL", "")
+    openai_model: str = os.getenv("OPENAI_VISUAL_MODEL", "")
+
+
+@dataclass
 class MinerUConfig:
     """MinerU 云 API 配置"""
     api_token: str = os.getenv("MINERU_API_TOKEN", "")
@@ -59,6 +67,7 @@ class Config:
     """全局配置"""
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
+    vision_llm: VisionLLMConfig = field(default_factory=VisionLLMConfig)
     mineru: MinerUConfig = field(default_factory=MinerUConfig)
     qdrant: QdrantConfig = field(default_factory=QdrantConfig)
     chunk: ChunkConfig = field(default_factory=ChunkConfig)

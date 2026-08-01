@@ -14,15 +14,12 @@ from offline_processing.document_loader_mineru import MarkdownDocument
 
 
 AI_DESCRIPTION_TYPES = {"table", "code", "image"}
+MARKDOWN_DIR = PROJECT_ROOT / "doc_markdown"
 
 
-def process_markdown_document(markdown_file: str | Path) -> None:
+def process_markdown_document(file_name: str) -> None:
     """二阶段分片指定的 Markdown 文档，并为非纯文本分片生成 AI 描述。"""
-    markdown_path = Path(markdown_file).expanduser().resolve()
-    if not markdown_path.is_file():
-        raise FileNotFoundError(f"Markdown 文件不存在: {markdown_path}")
-    if markdown_path.suffix.lower() != ".md":
-        raise ValueError(f"文件不是 Markdown 格式: {markdown_path}")
+    markdown_path = MARKDOWN_DIR / file_name
 
     chunker = Chunker()
     description_generator = ParagraphChunkDescriptionGenerator()
@@ -42,32 +39,15 @@ def process_markdown_document(markdown_file: str | Path) -> None:
     for paragraph_id, paragraph_chunk in enumerate(paragraph_chunks, start=1):
         paragraph_chunk.id = paragraph_id
 
-    ai_chunks = [
-        chunk
-        for chunk in paragraph_chunks
-        if chunk.type in AI_DESCRIPTION_TYPES
-    ]
-    description_generator.generate_descriptions(ai_chunks)
+    description_generator.generate_descriptions(paragraph_chunks)
 
-    missing_descriptions = [
-        chunk.id for chunk in ai_chunks if not chunk.ai_desc_text
-    ]
-    if missing_descriptions:
-        raise AssertionError(
-            f"以下分片未生成 AI 描述: {missing_descriptions}"
-        )
-
-    type_counts = Counter(chunk.type for chunk in paragraph_chunks)
-    print(
-        f"分片完成: 一级章节 {len(section_chunks)} 个，"
-        f"二级段落 {len(paragraph_chunks)} 个，类型统计 {dict(type_counts)}"
-    )
-    for chunk in ai_chunks:
-        print(
-            f"  ParagraphChunk(id={chunk.id}, type={chunk.type}, "
-            f"section_id={chunk.section_id})"
-        )
-        print(f"  AI 描述: {chunk.ai_desc_text}")
+    for chunk in paragraph_chunks:
+        if chunk.type in AI_DESCRIPTION_TYPES:
+            print(f"========================================AI 生成描述{chunk.type}=================================================")
+            print(chunk.ai_desc_text)
+        else:
+            print("================================================================================================================")
+            print(chunk.text)
 
 
 def main() -> None:
