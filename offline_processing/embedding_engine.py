@@ -1,6 +1,6 @@
 """
 RAG 知识库 - Embedding 引擎模块
-基于 BGE-M3 模型对 ParagraphChunk 进行向量化
+通过 OpenAI 兼容的云平台 API 对 ParagraphChunk 进行向量化
 """
 
 from typing import List
@@ -10,13 +10,33 @@ from .chunker import ParagraphChunk
 
 
 class EmbeddingEngine:
-    """Embedding 引擎，基于 BGE-M3 模型"""
+    """Embedding 引擎，使用 OpenAI 兼容的云平台向量 API。"""
+
+    BATCH_SIZE = 12
 
     def __init__(self):
-        from FlagEmbedding import BGEM3FlagModel
+        embedding_config = config.embedding
+        self._model_name = embedding_config.openai_model.strip()
+        if not self._model_name:
+            raise ValueError("未配置 OPENAI_EMBEDDING_MODEL 环境变量")
 
-        print("初始化 BGE-M3 Embedding 模型...")
-        self._model = BGEM3FlagModel("BAAI/bge-m3", use_fp16=True, devices=["cpu"])
+        api_key = embedding_config.openai_api_key.strip()
+        if not api_key:
+            raise ValueError("未配置 OPENAI_API_KEY 环境变量")
+
+        self._embedding_dimension = embedding_config.openai_dimension
+        if self._embedding_dimension <= 0:
+            raise ValueError("OPENAI_EMBEDDING_DIMENSION 必须为正整数")
+
+        from openai import OpenAI
+
+        client_options = {"api_key": api_key}
+        base_url = embedding_config.openai_base_url.strip()
+        if base_url:
+            client_options["base_url"] = base_url
+        self._client = OpenAI(**client_options)
+
+        print(f"初始化云平台 Embedding 客户端: {self._model_name}")
 
     # ------------------------------------------------------------------
     # chunk embedding
@@ -40,14 +60,10 @@ class EmbeddingEngine:
             for chunk in chunks
         ]
 
-        embeddings = self._model.encode(
-            texts,
-            batch_size=12,
-            max_length=8192,
-        )["dense_vecs"]
+        embeddings = self._embed_texts(texts)
 
         for chunk, vector in zip(chunks, embeddings):
-            chunk.embedding_vector = vector.tolist()
+            chunk.embedding_vector = vector
 
     # ------------------------------------------------------------------
     # query embedding
@@ -55,18 +71,33 @@ class EmbeddingEngine:
 
     def embed_query(self, query: str) -> List[float]:
         """将查询文本转换为向量"""
-        result = self._model.encode([query], max_length=8192)
-        return result["dense_vecs"][0].tolist()
+        return self._embed_texts([query])[0]
 
-    # ------------------------------------------------------------------
-    # compat
-    # ------------------------------------------------------------------
+    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """分批调用云平台 API，并按输入顺序返回向量。"""
+        embeddings: List[List[float]] = []
 
-    def get_model(self):
-        """获取底层 BGE-M3 模型实例"""
-        return self._model
+        for start in range(0, len(texts), self.BATCH_SIZE):
+            batch = texts[start:start + self.BATCH_SIZE]
+            response = self._client.embeddings.create(
+                model=self._model_name,
+                input=batch,
+            )
+            response_data = sorted(response.data, key=lambda item: item.index)
+            if len(response_data) != len(batch):
+                raise RuntimeError(
+                    f"Embedding API 返回了 {len(response_data)} 个向量，"
+                    f"但请求中包含 {len(batch)} 条文本"
+                )
 
-    @property
-    def embedding_dimension(self) -> int:
-        """BGE-M3 向量维度"""
-        return 1024
+            for item in response_data:
+                vector = list(item.embedding)
+                if len(vector) != self._embedding_dimension:
+                    raise RuntimeError(
+                        f"Embedding API 返回的向量维度为 {len(vector)}，"
+                        f"与 OPENAI_EMBEDDING_DIMENSION="
+                        f"{self._embedding_dimension} 不一致"
+                    )
+                embeddings.append(vector)
+
+        return embeddings

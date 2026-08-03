@@ -5,11 +5,10 @@ RAG 知识库 - 文档分片模块
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
-from config import config
 from .document_loader_mineru import MarkdownDocument
 
 """章节分片数据类"""
@@ -21,8 +20,6 @@ class RetrieveChunk:
     doc_id: int = 0
     """章节标题路径"""
     title_path: str = ""
-    """章节index"""
-    section_index: int = 0
     """章节文本"""
     text: str = ""
 
@@ -32,7 +29,7 @@ class ParagraphChunk:
     """主键id"""
     id: int = 0
     """所属章节id"""
-    section_id: int = 0
+    retrieve_id: int = 0
     """段落文本"""
     text: str = ""
     """文本类型，可选枚举text、table、image、code"""
@@ -113,24 +110,23 @@ class Chunker:
 
         result: List[RetrieveChunk] = []
         for doc in docs:
-            sub_texts = [doc.page_content]
+            if not doc.page_content.strip():
+                continue
 
-            for sub_text in sub_texts:
-                if not sub_text.strip():
-                    continue
+            # 从 metadata 拼接标题路径
+            title_path = self._build_title_path(doc.metadata)
 
-                # 从 metadata 拼接标题路径
-                title_path = self._build_title_path(doc.metadata)
-
-                chunk = RetrieveChunk(
-                    doc_id=document.id or 0,
-                    section_index=len(result),
-                    title_path=title_path,
-                    text=sub_text,
-                )
-                result.append(chunk)
+            chunk = RetrieveChunk(
+                doc_id=document.id or 0,
+                title_path=title_path,
+                text=doc.page_content,
+            )
+            result.append(chunk)
 
         _merge_small_chunks(result, 800, 1500)
+        for retrieve_index, chunk in enumerate(result, start=1):
+            chunk.id = int(f"{document.id}{retrieve_index:0{3}d}")
+
         print(f"  [Markdown 分片] {document.file_name}: {len(result)} 个 chunk")
         return result
 
@@ -157,6 +153,8 @@ class Chunker:
         result: List[ParagraphChunk] = []
 
         for section in section_chunks:
+            section_result: List[ParagraphChunk] = []
+
             # 剔除开头的标题行；普通文本按换行分片，代码块整体保留
             #text_without_heading = self._HEADING_LINE_RE.sub("", section.text).strip()
             paragraphs: List[str] = []
@@ -195,13 +193,18 @@ class Chunker:
 
                 chunk_type = self._detect_paragraph_type(para)
                 chunk = ParagraphChunk(
-                    section_id=section.id,
+                    retrieve_id=section.id,
                     text=para,
                     type=chunk_type,
                 )
-                result.append(chunk)
+                section_result.append(chunk)
 
-        _merge_small_chunks(result, 200, 500)
+            _merge_small_chunks(section_result, 200, 500)
+            for paragraph_index, chunk in enumerate(section_result, start=1):
+                chunk.id = int(f"{section.id}{paragraph_index:0{3}d}")
+
+            result.extend(section_result)
+
         return result
 
     def _detect_paragraph_type(self, text: str) -> str:

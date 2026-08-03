@@ -11,7 +11,7 @@ import re
 import tempfile
 import time
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -24,8 +24,8 @@ from config import config
 @dataclass
 class MarkdownDocument:
     """PDF 解析后的 Markdown 文档"""
-    """主键 ID"""
-    id: int | None = None
+    """主键 ID 直接用时间戳作为id，demo项目，不考虑太复杂的唯一性标识方案"""
+    id: int = field(default_factory=lambda: int(time.time()))
     """文件名"""
     file_name: str = ""
     """作者"""

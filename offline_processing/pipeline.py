@@ -70,10 +70,6 @@ class OfflinePipeline:
             print("分片后没有有效内容，入库流程终止")
             return
 
-        # 为 RetrieveChunk 分配 ID（从 1 开始）
-        for i, section in enumerate(section_chunks, start=1):
-            section.id = i
-
         print(f"  生成 {len(section_chunks)} 个 RetrieveChunk")
 
         # Step 4: 按段落分片

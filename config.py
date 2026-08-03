@@ -11,17 +11,11 @@ load_dotenv()
 
 @dataclass
 class EmbeddingConfig:
-    """Embedding 模型配置"""
-    backend: str = os.getenv("EMBEDDING_BACKEND", "openai")
-    # OpenAI
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    openai_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
-    openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-    # HuggingFace
-    hf_model: str = os.getenv("HF_EMBEDDING_MODEL", "BAAI/bge-small-zh-v1.5")
-    # Ollama
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    ollama_model: str = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+    """OpenAI 兼容的云平台 Embedding API 配置"""
+    openai_api_key: str = os.getenv("OPENAI_EMBEDDING_API_KEY", "")
+    openai_model: str = os.getenv("OPENAI_EMBEDDING_MODEL", "")
+    openai_base_url: str = os.getenv("OPENAI_EMBEDDING_BASE_URL", "")
+    openai_dimension: int = int(os.getenv("OPENAI_EMBEDDING_DIMENSION", "1024"))
 
 
 @dataclass

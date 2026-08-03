@@ -36,7 +36,7 @@ def cmd_ingest(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="RAG 知识库 - 离线处理 (基于 Qdrant + BGE-M3)",
+        description="RAG 知识库 - 离线处理 (基于 Qdrant + 云向量 API)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:

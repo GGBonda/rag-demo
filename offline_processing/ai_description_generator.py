@@ -4,6 +4,7 @@ RAG 知识库 - AI 描述生成模块
 """
 
 import re
+import time
 
 from config import config
 from .chunker import ParagraphChunk
@@ -67,6 +68,8 @@ class ParagraphChunkDescriptionGenerator:
                 client = self._text_client
                 model = self.text_model
 
+            print(f"[AI 描述] 开始调用模型: model={model}, chunk_type={chunk.type}, chunk_id={chunk.id}")
+            start_time = time.perf_counter()
             response = client.chat.completions.create(
                 model=model,
                 messages=[
@@ -83,10 +86,12 @@ class ParagraphChunkDescriptionGenerator:
                     },
                 ],
             )
+            print(f"  [AI 描述] 模型调用结束: 耗时={time.perf_counter() - start_time:.2f}秒")
+
             description = response.choices[0].message.content
             if not description or not description.strip():
                 raise RuntimeError(f"模型未返回 {chunk.type} 分片的描述")
-            chunk.ai_desc_text = description.strip()[:500]
+            chunk.ai_desc_text = description.strip()
 
     @staticmethod
     def _create_client(api_key: str, base_url: str, api_key_name: str):

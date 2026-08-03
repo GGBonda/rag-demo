@@ -1,6 +1,5 @@
 import argparse
 import sys
-from collections import Counter
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -32,21 +31,16 @@ def process_markdown_document(file_name: str) -> None:
     )
 
     section_chunks = chunker.chunk_markdown(document)
-    for section_id, section_chunk in enumerate(section_chunks, start=1):
-        section_chunk.id = section_id
-
     paragraph_chunks = chunker.chunk_section_chunks(section_chunks)
-    for paragraph_id, paragraph_chunk in enumerate(paragraph_chunks, start=1):
-        paragraph_chunk.id = paragraph_id
 
     description_generator.generate_descriptions(paragraph_chunks)
 
     for chunk in paragraph_chunks:
         if chunk.type in AI_DESCRIPTION_TYPES:
-            print(f"========================================AI 生成描述{chunk.type}=================================================")
+            print(f"{chunk.id}========================================AI 生成描述{chunk.type}=================================================")
             print(chunk.ai_desc_text)
         else:
-            print("================================================================================================================")
+            print(f"{chunk.id}===============================================================================================================")
             print(chunk.text)
 
 
