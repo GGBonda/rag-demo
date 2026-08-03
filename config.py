@@ -46,7 +46,6 @@ class QdrantConfig:
     """Qdrant 向量数据库配置"""
     host: str = os.getenv("QDRANT_HOST", "localhost")
     port: int = int(os.getenv("QDRANT_PORT", "6333"))
-    collection_name: str = os.getenv("QDRANT_COLLECTION_NAME", "paragraph_chunks")
 
 
 @dataclass
