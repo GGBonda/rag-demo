@@ -5,7 +5,6 @@
 from .document_loader_mineru import MarkdownDocument, MinerUDocumentLoader
 from .chunker import Chunker, RetrieveChunk
 from .embedding_engine import EmbeddingEngine
-from .pipeline import OfflinePipeline
 
 __all__ = [
     "MinerUDocumentLoader",
@@ -13,5 +12,4 @@ __all__ = [
     "RetrieveChunk",
     "Chunker",
     "EmbeddingEngine",
-    "OfflinePipeline",
 ]

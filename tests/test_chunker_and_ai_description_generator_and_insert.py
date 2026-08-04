@@ -1,0 +1,82 @@
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from offline_processing.ai_description_generator import (
+    ParagraphChunkDescriptionGenerator,
+)
+from offline_processing.chunker import Chunker
+from offline_processing.document_loader_mineru import MarkdownDocument
+from offline_processing.embedding_engine import EmbeddingEngine
+from store import (
+    MarkdownDocumentStore,
+    ParagraphChunkStore,
+    QdrantStore,
+    RetrieveChunkStore,
+)
+
+
+MARKDOWN_DIR = PROJECT_ROOT / "doc_markdown"
+MARKDOWN_EXTENSIONS = {".md", ".markdown"}
+
+
+def ingest_all_markdown_documents() -> None:
+    """解析、切分并描述 doc_markdown 下的文档，然后批量写入 Qdrant。"""
+    markdown_paths = sorted(
+        path
+        for path in MARKDOWN_DIR.rglob("*")
+        if path.is_file() and path.suffix.lower() in MARKDOWN_EXTENSIONS
+    )
+    if not markdown_paths:
+        print(f"未在 {MARKDOWN_DIR} 中找到 Markdown 文档")
+        return
+
+    chunker = Chunker()
+    description_generator = ParagraphChunkDescriptionGenerator()
+    embedding_engine = EmbeddingEngine()
+
+    documents = []
+    retrieve_chunks = []
+    paragraph_chunks = []
+
+    for document_id, markdown_path in enumerate(markdown_paths, start=1):
+        print(f"正在处理: {markdown_path.name}")
+        document = MarkdownDocument(
+            file_name=markdown_path.name,
+            markdown_text=markdown_path.read_text(encoding="utf-8"),
+        )
+        document_retrieve_chunks = chunker.chunk_markdown(document)
+        document_paragraph_chunks = chunker.chunk_section_chunks(
+            document_retrieve_chunks
+        )
+        description_generator.generate_descriptions(document_paragraph_chunks)
+
+        documents.append(document)
+        retrieve_chunks.extend(document_retrieve_chunks)
+        paragraph_chunks.extend(document_paragraph_chunks)
+
+    embedding_engine.embed_chunks(paragraph_chunks)
+
+    qdrant_store = QdrantStore()
+    markdown_document_store = MarkdownDocumentStore(qdrant_store)
+    retrieve_chunk_store = RetrieveChunkStore(qdrant_store)
+    paragraph_chunk_store = ParagraphChunkStore(qdrant_store)
+
+    markdown_document_store.clear()
+    retrieve_chunk_store.clear()
+    paragraph_chunk_store.clear()
+
+    document_count = markdown_document_store.batch_insert(documents)
+    retrieve_count = retrieve_chunk_store.batch_insert(retrieve_chunks)
+    paragraph_count = paragraph_chunk_store.batch_insert(paragraph_chunks)
+
+    print("入库完成:")
+    print(f"  MarkdownDocument: {document_count}")
+    print(f"  RetrieveChunk: {retrieve_count}")
+    print(f"  ParagraphChunk: {paragraph_count}")
+
+
+if __name__ == "__main__":
+    ingest_all_markdown_documents()

@@ -51,8 +51,10 @@ class QdrantConfig:
 @dataclass
 class ChunkConfig:
     """文档分片配置"""
-    chunk_size: int = int(os.getenv("CHUNK_SIZE", "512"))
-    chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "50"))
+    retrieve_chunk_min_size: int = int(os.getenv("RETRIEVE_CHUNK_MIN_SIZE", "800"))
+    retrieve_chunk_max_size: int = int(os.getenv("RETRIEVE_CHUNK_MAX_SIZE", "1500"))
+    paragraph_chunk_min_size: int = int(os.getenv("PARAGRAPH_CHUNK_MIN_SIZE", "200"))
+    paragraph_chunk_max_size: int = int(os.getenv("PARAGRAPH_CHUNK_MAX_SIZE", "500"))
 
 
 @dataclass

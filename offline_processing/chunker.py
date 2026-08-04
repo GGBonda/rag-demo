@@ -11,6 +11,8 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from .document_loader_mineru import MarkdownDocument
 
+from config import config
+
 """章节分片数据类"""
 @dataclass
 class RetrieveChunk:
@@ -123,7 +125,7 @@ class Chunker:
             )
             result.append(chunk)
 
-        _merge_small_chunks(result, 800, 1500)
+        _merge_small_chunks(result, config.chunk.retrieve_chunk_min_size, config.chunk.retrieve_chunk_max_size)
         for retrieve_index, chunk in enumerate(result, start=1):
             chunk.id = int(f"{document.id}{retrieve_index:0{3}d}")
 
@@ -199,7 +201,7 @@ class Chunker:
                 )
                 section_result.append(chunk)
 
-            _merge_small_chunks(section_result, 200, 500)
+            _merge_small_chunks(section_result, config.chunk.paragraph_chunk_min_size, config.chunk.paragraph_chunk_max_size)
             for paragraph_index, chunk in enumerate(section_result, start=1):
                 chunk.id = int(f"{section.id}{paragraph_index:0{3}d}")
 
