@@ -39,7 +39,7 @@ class ParagraphChunk:
     """AI 描述文本，table、image、code 类型分片需要由 AI 总结后生成相应描述"""
     ai_desc_text: str = ""
     """向量"""
-    embedding_vector: List[float] = None
+    embedding_vector: list[float] | None = None
 
 
 def _merge_small_chunks(

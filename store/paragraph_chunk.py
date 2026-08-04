@@ -32,7 +32,7 @@ class ParagraphChunkStore:
                 models.PointStruct(
                     id=chunk.id,
                     vector={
-                        PARAGRAPH_DENSE_VECTOR: list(chunk.embedding_vector),
+                        PARAGRAPH_DENSE_VECTOR: chunk.embedding_vector,
                         PARAGRAPH_TEXT_SPARSE_VECTOR: self._bm25_document(chunk.ai_desc_text if chunk.ai_desc_text.strip() else chunk.text)
                     },
                     payload={
@@ -57,47 +57,14 @@ class ParagraphChunkStore:
 
     def query(
         self,
-        query_vector: Sequence[float],
+        query_vector: list[float],
+        query_text: str,
         limit: int = 5,
         score_threshold: float | None = None,
     ) -> list[models.ScoredPoint]:
-        """使用余弦相似度查询 ParagraphChunk。"""
+        """使用稠密向量和 BM25 稀疏向量混合查询 ParagraphChunk。"""
         if len(query_vector) != self._store.vector_size:
             raise ValueError(f"查询向量维度必须为 {self._store.vector_size}，实际为 {len(query_vector)}")
-        if limit <= 0:
-            raise ValueError("limit 必须为正整数")
-
-        response = self._store.client.query_points(
-            collection_name=PARAGRAPH_CHUNK_COLLECTION,
-            query=list(query_vector),
-            using=PARAGRAPH_DENSE_VECTOR,
-            limit=limit,
-            score_threshold=score_threshold,
-            with_payload=True,
-        )
-        return response.points
-
-    def query_text_sparse(
-        self,
-        query_text: str,
-        limit: int = 5,
-        score_threshold: float | None = None,
-    ) -> list[models.ScoredPoint]:
-        """使用 BM25 稀疏向量检索 text 字段。"""
-        return self._query_sparse(
-            query_text,
-            PARAGRAPH_TEXT_SPARSE_VECTOR,
-            limit,
-            score_threshold,
-        )
-
-    def _query_sparse(
-        self,
-        query_text: str,
-        vector_name: str,
-        limit: int,
-        score_threshold: float | None,
-    ) -> list[models.ScoredPoint]:
         if not query_text.strip():
             raise ValueError("query_text 不能为空")
         if limit <= 0:
@@ -105,10 +72,23 @@ class ParagraphChunkStore:
 
         response = self._store.client.query_points(
             collection_name=PARAGRAPH_CHUNK_COLLECTION,
-            query=self._bm25_document(query_text),
-            using=vector_name,
+            prefetch=[
+                models.Prefetch(
+                    query=query_vector,
+                    using=PARAGRAPH_DENSE_VECTOR,
+                    limit=limit,
+                    score_threshold=score_threshold,
+                ),
+                models.Prefetch(
+                    query=self._bm25_document(query_text),
+                    using=PARAGRAPH_TEXT_SPARSE_VECTOR,
+                    limit=limit,
+                ),
+            ],
+            query=models.RrfQuery(
+                rrf=models.Rrf(weights=[1, 0]),
+            ),
             limit=limit,
-            score_threshold=score_threshold,
             with_payload=True,
         )
         return response.points

@@ -41,6 +41,7 @@ class Retriever:
         query_vector = self.embedding_engine.embed_query(query)
         results = self.paragraph_chunk_store.query(
             query_vector=query_vector,
+            query_text=query,
             limit=top_k,
             score_threshold=similarity_threshold,
         )

@@ -3,6 +3,5 @@
 """
 
 from .retriever import Retriever
-from .responder import Responder
 
-__all__ = ["Retriever", "Responder"]
+__all__ = ["Retriever"]

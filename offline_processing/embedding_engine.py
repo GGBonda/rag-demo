@@ -69,13 +69,13 @@ class EmbeddingEngine:
     # query embedding
     # ------------------------------------------------------------------
 
-    def embed_query(self, query: str) -> List[float]:
+    def embed_query(self, query: str) -> list[float]:
         """将查询文本转换为向量"""
         return self._embed_texts([query])[0]
 
-    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+    def _embed_texts(self, texts: List[str]) -> list[list[float]]:
         """分批调用云平台 API，并按输入顺序返回向量。"""
-        embeddings: List[List[float]] = []
+        embeddings: list[list[float]] = []
 
         for start in range(0, len(texts), self.BATCH_SIZE):
             batch = texts[start:start + self.BATCH_SIZE]
