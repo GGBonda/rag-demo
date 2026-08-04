@@ -11,19 +11,9 @@ from .retriever import Retriever
 class Responder:
     """回答生成器，负责处理用户提问并返回回答"""
 
-    def __init__(
-        self,
-        collection_name: str | None = None,
-    ):
-        """
-        初始化回答生成器
-
-        Args:
-            collection_name: Qdrant 集合名称
-        """
-        self.retriever = Retriever(
-            collection_name=collection_name,
-        )
+    def __init__(self):
+        """初始化回答生成器。"""
+        self.retriever = Retriever()
 
     def ask(
         self,

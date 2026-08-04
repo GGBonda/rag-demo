@@ -28,7 +28,6 @@ def cmd_ingest(args):
         file_path=args.file,
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
-        collection_name=args.collection_name,
         **loader_kwargs,
     )
     pipeline.ingest(rebuild=args.rebuild)
@@ -64,10 +63,6 @@ def main():
     ingest_parser.add_argument(
         "--chunk_overlap", type=int, default=None,
         help=f"分片重叠量 (默认: {config.chunk.chunk_overlap})"
-    )
-    ingest_parser.add_argument(
-        "--collection_name", default=None,
-        help=f"Qdrant 集合名称 (默认: {config.qdrant.collection_name})"
     )
     ingest_parser.add_argument(
         "--rebuild", action="store_true",

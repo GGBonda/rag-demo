@@ -36,7 +36,6 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
-    collection_name: str | None = None
 
 
 class SearchResponse(BaseModel):
@@ -51,9 +50,7 @@ def health():
 
 @app.post("/api/search", response_model=SearchResponse)
 def search(req: SearchRequest):
-    retriever = Retriever(
-        collection_name=req.collection_name,
-    )
+    retriever = Retriever()
 
     results = retriever.search(query=req.query, top_k=req.top_k)
 
@@ -67,8 +64,8 @@ def search(req: SearchRequest):
 
 
 @app.get("/api/stats")
-def stats(collection_name: str | None = None):
-    retriever = Retriever(collection_name=collection_name)
+def stats():
+    retriever = Retriever()
     return retriever.get_stats()
 
 

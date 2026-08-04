@@ -6,27 +6,20 @@
 from typing import List, Dict, Any, Optional
 
 from offline_processing.embedding_engine import EmbeddingEngine
-from offline_processing.vector_store import VectorStoreManager
+from store import (
+    PARAGRAPH_CHUNK_COLLECTION,
+    ParagraphChunkStore,
+    QdrantStore,
+)
 
 
 class Retriever:
     """检索器，负责从 Qdrant 向量数据库中检索与用户问题最相关的文档片段"""
 
-    def __init__(
-        self,
-        collection_name: str | None = None,
-    ):
-        """
-        初始化检索器
-
-        Args:
-            collection_name: Qdrant 集合名称
-        """
+    def __init__(self):
+        """初始化检索器。"""
         self.embedding_engine = EmbeddingEngine()
-        self.vector_store = VectorStoreManager(
-            embedding_engine=self.embedding_engine,
-            collection_name=collection_name,
-        )
+        self.paragraph_chunk_store = ParagraphChunkStore(QdrantStore())
 
     def search(
         self,
@@ -45,12 +38,20 @@ class Retriever:
         Returns:
             结果列表，每项包含: text, type, score, section_id, ai_desc_text
         """
-        return self.vector_store.search(
-            query_text=query,
-            top_k=top_k,
-            similarity_threshold=similarity_threshold,
+        query_vector = self.embedding_engine.embed_query(query)
+        results = self.paragraph_chunk_store.query(
+            query_vector=query_vector,
+            limit=top_k,
+            score_threshold=similarity_threshold,
         )
 
-    def get_stats(self) -> Dict[str, Any]:
-        """获取知识库统计信息"""
-        return self.vector_store.get_stats()
+        return [
+            {
+                "text": (hit.payload or {}).get("text", ""),
+                "type": (hit.payload or {}).get("type", "text"),
+                "score": hit.score,
+                "section_id": (hit.payload or {}).get("retrieve_id", 0),
+                "ai_desc_text": (hit.payload or {}).get("ai_desc_text", ""),
+            }
+            for hit in results
+        ]

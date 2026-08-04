@@ -6,7 +6,6 @@
 from .document_loader_mineru import MinerUDocumentLoader
 from .chunker import Chunker
 from .embedding_engine import EmbeddingEngine
-from .vector_store import VectorStoreManager
 
 
 class OfflinePipeline:
@@ -17,24 +16,29 @@ class OfflinePipeline:
         file_path: str | None = None,
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
-        collection_name: str | None = None,
         **loader_kwargs,
     ):
+        from store import (
+            PARAGRAPH_CHUNK_COLLECTION,
+            MarkdownDocumentStore,
+            ParagraphChunkStore,
+            QdrantStore,
+            RetrieveChunkStore,
+        )
+
         self.file_path = file_path
 
         self.loader = MinerUDocumentLoader(
             file_path=file_path,
             **loader_kwargs,
         )
-        self.chunker = Chunker(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        )
+        self.chunker = Chunker()
         self.embedding_engine = EmbeddingEngine()
-        self.vector_store = VectorStoreManager(
-            embedding_engine=self.embedding_engine,
-            collection_name=collection_name,
-        )
+        self.qdrant_store = QdrantStore()
+        self.markdown_document_store = MarkdownDocumentStore(self.qdrant_store)
+        self.retrieve_chunk_store = RetrieveChunkStore(self.qdrant_store)
+        self.paragraph_chunk_store = ParagraphChunkStore(self.qdrant_store)
+        self.paragraph_collection_name = PARAGRAPH_CHUNK_COLLECTION
 
     def ingest(self, rebuild: bool = False) -> None:
         """
@@ -47,12 +51,13 @@ class OfflinePipeline:
         print("RAG 知识库 - 离线处理: 文档入库流程")
         print("=" * 60)
 
-        if rebuild:
-            self.vector_store.clear(confirm=True)
+        # Step 1: QdrantStore 单例构造时已初始化集合
+        print("\n[1/5] Qdrant 集合已就绪...")
 
-        # Step 1: 初始化 Qdrant 集合
-        print("\n[1/5] 初始化 Qdrant 集合...")
-        self.vector_store.setup()
+        if rebuild:
+            self.markdown_document_store.clear()
+            self.retrieve_chunk_store.clear()
+            self.paragraph_chunk_store.clear()
 
         # Step 2: 加载文档
         print("\n[2/5] 加载文档...")
@@ -87,13 +92,17 @@ class OfflinePipeline:
 
         # Step 5: 写入 Qdrant
         print(f"\n[5/5] 写入 Qdrant...")
-        self.vector_store.add_chunks(paragraph_chunks)
+        self.markdown_document_store.batch_insert([doc])
+        self.retrieve_chunk_store.batch_insert(section_chunks)
+        self.paragraph_chunk_store.batch_insert(paragraph_chunks)
 
         # 输出统计
-        stats = self.vector_store.get_stats()
+        paragraph_count = self.qdrant_store.client.count(
+            self.paragraph_collection_name
+        ).count
         print("\n" + "=" * 60)
         print("入库完成! 统计信息:")
-        print(f"  - 集合: {stats['collection_name']}")
-        print(f"  - 文档 chunk 总数: {stats['document_count']}")
-        print(f"  - 向量维度: {stats['embedding_dimension']}")
+        print(f"  - 集合: {self.paragraph_collection_name}")
+        print(f"  - 文档 chunk 总数: {paragraph_count}")
+        print(f"  - 向量维度: {self.qdrant_store.vector_size}")
         print("=" * 60)

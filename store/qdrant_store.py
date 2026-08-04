@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from threading import Lock
 
 from qdrant_client import QdrantClient, models
 
@@ -18,16 +19,31 @@ PARAGRAPH_TEXT_SPARSE_VECTOR = "sparse"
 
 
 class QdrantStore:
-    """Qdrant 连接、集合初始化及各 collection 数据操作入口。"""
+    """Qdrant 连接与集合管理的进程内单例。"""
 
-    _COLLECTION_NAMES = {
-        MARKDOWN_DOCUMENT_COLLECTION,
-        RETRIEVE_CHUNK_COLLECTION,
-        PARAGRAPH_CHUNK_COLLECTION,
-    }
-    def __init__(
-        self
-    ) -> None:
+    _instance: QdrantStore | None = None
+    _instance_lock = Lock()
+    _initialization_lock = Lock()
+
+    def __new__(cls) -> QdrantStore:
+        if cls._instance is None:
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if getattr(self, "_initialized", False):
+            return
+
+        with self._initialization_lock:
+            if getattr(self, "_initialized", False):
+                return
+
+            self._initialize()
+            self._initialized = True
+
+    def _initialize(self) -> None:
         self.vector_size = config.embedding.openai_dimension
         if self.vector_size <= 0:
             raise ValueError("vector_size 必须为正整数")
@@ -37,8 +53,6 @@ class QdrantStore:
             host=config.qdrant.host,
             port=config.qdrant.port,
         )
-
-    def initialize_collections(self) -> None:
         """初始化三个集合；重复调用不会重建已存在的集合。"""
         self._create_collection_if_missing(
             MARKDOWN_DOCUMENT_COLLECTION,
@@ -65,7 +79,6 @@ class QdrantStore:
 
     def clear_collection(self, collection_name: str) -> None:
         """清空指定集合的数据，保留集合配置。"""
-        self._validate_collection_name(collection_name)
         self.client.delete(
             collection_name=collection_name,
             points_selector=models.FilterSelector(
@@ -89,10 +102,6 @@ class QdrantStore:
             vectors_config=vectors_config,
             sparse_vectors_config=sparse_vectors_config,
         )
-
-    def _validate_collection_name(self, collection_name: str) -> None:
-        if collection_name not in self._COLLECTION_NAMES:
-            raise ValueError(f"不支持的 collection: {collection_name}")
 
 
 __all__ = [
