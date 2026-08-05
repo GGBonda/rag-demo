@@ -13,7 +13,7 @@ from .document_loader_mineru import MarkdownDocument
 
 from config import config
 
-"""章节分片数据类"""
+"""召回分片数据类"""
 @dataclass
 class RetrieveChunk:
     """主键id"""
@@ -32,48 +32,52 @@ class IndexChunk:
     id: int = 0
     """所属章节id"""
     retrieve_id: int = 0
-    """段落文本"""
+    """索引文本"""
     text: str = ""
-    """文本类型，可选枚举text、table、image、code"""
-    type: str = "text"
-    """AI 描述文本，table、image、code 类型分片需要由 AI 总结后生成相应描述"""
-    ai_desc_text: str = ""
     """向量"""
     embedding_vector: list[float] | None = None
 
+"""判断文本是否为 Markdown 或 HTML 表格"""
+def _is_markdown_table(text: str) -> bool:
+    # 用于识别 Markdown 表格分隔行的正则（如 |---|:---:|---|）
+    _TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
+    # 用于识别完整的 HTML table 标签，兼容属性、大小写和多行内容
+    _HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
 
-def _merge_small_chunks(
-    chunks: List[IndexChunk] | List[RetrieveChunk],
-    min_size: int,
-    max_size: int
-) -> None:
-    """原地将过小分块向后合并，且不拆分已经超过 max_size 的分块。"""
-    if min_size < 0 or max_size < min_size:
-        raise ValueError("需要满足 0 <= min_size <= max_size")
+    stripped_text = text.strip()
+    if _HTML_TABLE_RE.search(stripped_text):
+        return True
 
-    index = 0
+    lines = stripped_text.split("\n")
+    if len(lines) < 2:
+        return False
+    # 表格至少有一行包含分隔行（如 |---|---|）
+    for line in lines:
+        if _TABLE_SEPARATOR_RE.match(line.strip()):
+            return True
+    return False
 
-    while index < len(chunks):
-        chunk = chunks[index]
+# 用于识别三个或更多反引号组成的代码块边界
+CODE_FENCE_RE = re.compile(r"^\s*(`{3,})(.*)$")
 
-        while (
-            (not hasattr(chunk, 'type') or chunk.type == "text")
-            and len(chunk.text) < min_size
-            and index + 1 < len(chunks)
-        ):
-            next_chunk = chunks[index + 1]
-            if hasattr(next_chunk, 'type') and next_chunk.type != "text":
-                break
+# 用于识别并提取 Markdown 中的 base64 图片
+DATA_IMAGE_RE = re.compile(
+    r"!\[([^\]]*)\]\("
+    r"(data:image/[^;]+;base64,[^\s)]+)"
+    r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
+    r"\)"
+)
 
-            merged_text = f"{chunk.text}\n{next_chunk.text}"
-            if len(merged_text) > max_size:
-                break
-
-            next_chunk.text = merged_text
-            del chunks[index]
-            chunk = next_chunk
-
-        index += 1
+"""检测文本类型：code / image / table / text。"""
+def detect_text_type(text: str) -> str:
+    first_line = text.lstrip().splitlines()[0] if text.strip() else ""
+    if CODE_FENCE_RE.match(first_line):
+        return "code"
+    if DATA_IMAGE_RE.search(text):
+        return "image"
+    if _is_markdown_table(text):
+        return "table"
+    return "text"
 
 
 class Chunker:
@@ -125,27 +129,74 @@ class Chunker:
             )
             result.append(chunk)
 
-        _merge_small_chunks(result, config.chunk.retrieve_chunk_min_size, config.chunk.retrieve_chunk_max_size)
+        self._merge_small_retrieve_chunks(result)
+
         for retrieve_index, chunk in enumerate(result, start=1):
             chunk.id = int(f"{document.id}{retrieve_index:0{3}d}")
 
         print(f"  [Markdown 分片] {document.file_name}: {len(result)} 个 chunk")
         return result
 
-    # 用于识别 base64 图片的正则
-    _BASE64_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(data:image/[^;]+;base64,")
+    @staticmethod
+    def _merge_small_retrieve_chunks(self, chunks: List[RetrieveChunk]) -> None:
+        min_size = config.chunk.retrieve_chunk_min_size
+        max_size = config.chunk.retrieve_chunk_max_size
+        """原地将过小的 RetrieveChunk 向后合并。"""
+        if min_size < 0 or max_size < min_size:
+            raise ValueError("需要满足 0 <= min_size <= max_size")
 
-    # 用于识别 Markdown 表格分隔行的正则（如 |---|:---:|---|）
-    _TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
+        index = 0
 
-    # 用于识别完整的 HTML table 标签，兼容属性、大小写和多行内容
-    _HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
+        while index < len(chunks):
+            chunk = chunks[index]
 
-    # 用于剔除文本开头的 Markdown 标题行
-    _HEADING_LINE_RE = re.compile(r"^#{1,6}\s+[^\n]*\n?")
+            while (
+                len(chunk.text) < min_size
+                and index + 1 < len(chunks)
+            ):
+                next_chunk = chunks[index + 1]
+                merged_text = f"{chunk.text}\n{next_chunk.text}"
+                if len(merged_text) > max_size:
+                    break
 
-    # 用于识别三个或更多反引号组成的代码块边界
-    _CODE_FENCE_RE = re.compile(r"^\s*(`{3,})(.*)$")
+                next_chunk.text = merged_text
+                del chunks[index]
+                chunk = next_chunk
+
+            index += 1
+
+    @staticmethod
+    def _merge_small_index_chunks(self, chunks: List[IndexChunk]) -> None:
+        """原地合并过小的纯文本 IndexChunk。"""
+        min_size = config.chunk.index_chunk_min_size
+        max_size = config.chunk.index_chunk_max_size
+
+        if min_size < 0 or max_size < min_size:
+            raise ValueError("需要满足 0 <= min_size <= max_size")
+
+        index = 0
+
+        while index < len(chunks):
+            chunk = chunks[index]
+
+            while (
+                detect_text_type(chunk.text) == "text"
+                and len(chunk.text) < min_size
+                and index + 1 < len(chunks)
+            ):
+                next_chunk = chunks[index + 1]
+                if detect_text_type(next_chunk.text) != "text":
+                    break
+
+                merged_text = f"{chunk.text}\n{next_chunk.text}"
+                if len(merged_text) > max_size:
+                    break
+
+                next_chunk.text = merged_text
+                del chunks[index]
+                chunk = next_chunk
+
+            index += 1
 
     def chunk_section_chunks(
         self,
@@ -157,14 +208,12 @@ class Chunker:
         for section in section_chunks:
             section_result: List[IndexChunk] = []
 
-            # 剔除开头的标题行；普通文本按换行分片，代码块整体保留
-            #text_without_heading = self._HEADING_LINE_RE.sub("", section.text).strip()
             index_texts: List[str] = []
             code_lines: List[str] = []
             code_fence_length = 0
 
             for line in section.text.splitlines():
-                fence_match = self._CODE_FENCE_RE.match(line)
+                fence_match = CODE_FENCE_RE.match(line)
 
                 if code_lines:
                     code_lines.append(line)
@@ -193,48 +242,20 @@ class Chunker:
                 if not index_text:
                     continue
 
-                chunk_type = self._detect_index_type(index_text)
                 chunk = IndexChunk(
                     retrieve_id=section.id,
                     text=index_text,
-                    type=chunk_type,
                 )
                 section_result.append(chunk)
 
-            _merge_small_chunks(section_result, config.chunk.index_chunk_min_size, config.chunk.index_chunk_max_size)
+            self._merge_small_index_chunks(section_result)
+
             for index_chunk_index, chunk in enumerate(section_result, start=1):
                 chunk.id = int(f"{section.id}{index_chunk_index:0{3}d}")
 
             result.extend(section_result)
 
         return result
-
-    def _detect_index_type(self, text: str) -> str:
-        """检测段落类型：code / image / table / text"""
-        first_line = text.lstrip().splitlines()[0] if text.strip() else ""
-        if self._CODE_FENCE_RE.match(first_line):
-            return "code"
-        if self._BASE64_IMAGE_RE.search(text):
-            return "image"
-        if self._is_markdown_table(text):
-            return "table"
-        return "text"
-
-    @staticmethod
-    def _is_markdown_table(text: str) -> bool:
-        """判断文本是否为 Markdown 或 HTML 表格"""
-        stripped_text = text.strip()
-        if Chunker._HTML_TABLE_RE.search(stripped_text):
-            return True
-
-        lines = stripped_text.split("\n")
-        if len(lines) < 2:
-            return False
-        # 表格至少有一行包含分隔行（如 |---|---|）
-        for line in lines:
-            if Chunker._TABLE_SEPARATOR_RE.match(line.strip()):
-                return True
-        return False
 
     # ------------------------------------------------------------------
     # 内部方法

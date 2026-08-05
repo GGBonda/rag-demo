@@ -5,7 +5,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from offline_processing.ai_description_generator import (
-    IndexChunkDescriptionGenerator,
+    AIDescriptionGenerator,
 )
 from offline_processing.chunker import Chunker
 from offline_processing.document_loader_mineru import MarkdownDocument
@@ -34,7 +34,7 @@ def ingest_all_markdown_documents() -> None:
         return
 
     chunker = Chunker()
-    description_generator = IndexChunkDescriptionGenerator()
+    description_generator = AIDescriptionGenerator()
     embedding_engine = EmbeddingEngine()
 
     documents = []

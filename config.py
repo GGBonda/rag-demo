@@ -55,6 +55,7 @@ class ChunkConfig:
     retrieve_chunk_max_size: int = int(os.getenv("RETRIEVE_CHUNK_MAX_SIZE", "1500"))
     index_chunk_min_size: int = int(os.getenv("INDEX_CHUNK_MIN_SIZE", "200"))
     index_chunk_max_size: int = int(os.getenv("INDEX_CHUNK_MAX_SIZE", "500"))
+    index_chunk_description_count: int = int(os.getenv("INDEX_CHUNK_DESCRIPTION_COUNT", "3"))
 
 
 @dataclass
