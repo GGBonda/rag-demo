@@ -44,30 +44,26 @@ class RetrieveChunkStore:
         """清空数据，保留集合及索引。"""
         self._store.clear_collection(RETRIEVE_CHUNK_COLLECTION)
 
-    def query(
-        self,
-        fields: Mapping[str, str | int | bool],
-        limit: int = 10,
-    ) -> list[models.Record]:
-        """按 payload 字段做 AND 精确匹配。"""
-        if not fields:
-            raise ValueError("fields 不能为空")
-        if limit <= 0:
-            raise ValueError("limit 必须为正整数")
+    def get_by_ids(self, ids: Sequence[int]) -> list[RetrieveChunk]:
+        """根据 ID 列表批量查询 RetrieveChunk，并按输入 ID 顺序返回。"""
+        if not ids:
+            return []
 
-        records, _ = self._store.client.scroll(
+        records = self._store.client.retrieve(
             collection_name=RETRIEVE_CHUNK_COLLECTION,
-            scroll_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key=field_name,
-                        match=models.MatchValue(value=value),
-                    )
-                    for field_name, value in fields.items()
-                ]
-            ),
-            limit=limit,
+            ids=list(ids),
             with_payload=True,
             with_vectors=False,
         )
-        return records
+        records_by_id = {record.id: record for record in records}
+
+        return [
+            RetrieveChunk(
+                id=record.id,
+                doc_id=(record.payload or {}).get("doc_id", 0),
+                title_path=(record.payload or {}).get("title_path", ""),
+                text=(record.payload or {}).get("text", ""),
+            )
+            for chunk_id in ids
+            if (record := records_by_id.get(chunk_id)) is not None
+        ]
