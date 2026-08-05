@@ -61,7 +61,7 @@ class ParagraphChunkStore:
         query_text: str,
         limit: int = 5,
         score_threshold: float | None = None,
-    ) -> list[models.ScoredPoint]:
+    ) -> list[ParagraphChunk]:
         """使用稠密向量和 BM25 稀疏向量混合查询 ParagraphChunk。"""
         if len(query_vector) != self._store.vector_size:
             raise ValueError(f"查询向量维度必须为 {self._store.vector_size}，实际为 {len(query_vector)}")
@@ -86,12 +86,23 @@ class ParagraphChunkStore:
                 ),
             ],
             query=models.RrfQuery(
-                rrf=models.Rrf(weights=[1, 0]),
+                rrf=models.Rrf(weights=[0.8, 0.2]),
             ),
             limit=limit,
             with_payload=True,
         )
-        return response.points
+        print(response.model_dump_json(indent=2))
+        return [
+            ParagraphChunk(
+                id=point.id,
+                retrieve_id=(point.payload or {}).get("retrieve_id", 0),
+                text=(point.payload or {}).get("text", ""),
+                type=(point.payload or {}).get("type", "text"),
+                ai_desc_text=(point.payload or {}).get("ai_desc_text", ""),
+                score=point.score,
+            )
+            for point in response.points
+        ]
 
     @classmethod
     def _bm25_document(cls, text: str) -> models.Document:

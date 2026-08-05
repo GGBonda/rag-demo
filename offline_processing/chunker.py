@@ -40,6 +40,8 @@ class ParagraphChunk:
     ai_desc_text: str = ""
     """向量"""
     embedding_vector: list[float] | None = None
+    """查询相似度分数"""
+    score: float | None = None
 
 
 def _merge_small_chunks(

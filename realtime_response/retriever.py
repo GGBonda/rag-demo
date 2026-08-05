@@ -48,11 +48,11 @@ class Retriever:
 
         return [
             {
-                "text": (hit.payload or {}).get("text", ""),
-                "type": (hit.payload or {}).get("type", "text"),
+                "text": hit.text,
+                "type": hit.type,
                 "score": hit.score,
-                "section_id": (hit.payload or {}).get("retrieve_id", 0),
-                "ai_desc_text": (hit.payload or {}).get("ai_desc_text", ""),
+                "section_id": hit.retrieve_id,
+                "ai_desc_text": hit.ai_desc_text,
             }
             for hit in results
         ]
