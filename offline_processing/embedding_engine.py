@@ -1,12 +1,12 @@
 """
 RAG 知识库 - Embedding 引擎模块
-通过 OpenAI 兼容的云平台 API 对 ParagraphChunk 进行向量化
+通过 OpenAI 兼容的云平台 API 对 IndexChunk 进行向量化
 """
 
 from typing import List
 
 from config import config
-from .chunker import ParagraphChunk
+from .chunker import IndexChunk
 
 
 class EmbeddingEngine:
@@ -42,16 +42,16 @@ class EmbeddingEngine:
     # chunk embedding
     # ------------------------------------------------------------------
 
-    def embed_chunks(self, chunks: List[ParagraphChunk]) -> None:
+    def embed_chunks(self, chunks: List[IndexChunk]) -> None:
         """
-        对 ParagraphChunk 列表进行 embedding。
+        对 IndexChunk 列表进行 embedding。
 
         - text 类型: 对 text 字段进行 embedding
         - table / image 类型: 对 ai_desc_text 字段进行 embedding
         - 生成的向量赋值到 embedding_vector 字段
 
         Args:
-            chunks: ParagraphChunk 列表
+            chunks: IndexChunk 列表
         """
         texts = [
             chunk.ai_desc_text

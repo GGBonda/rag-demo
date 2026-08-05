@@ -1,14 +1,13 @@
 """
 实时响应模块 - 检索器
-从 Qdrant 向量数据库中检索与用户问题最相关的 ParagraphChunk
+从 Qdrant 向量数据库中检索与用户问题最相关的 IndexChunk
 """
 
 from typing import List, Dict, Any, Optional
 
 from offline_processing.embedding_engine import EmbeddingEngine
 from store import (
-    PARAGRAPH_CHUNK_COLLECTION,
-    ParagraphChunkStore,
+    IndexChunkStore,
     QdrantStore,
 )
 
@@ -19,7 +18,7 @@ class Retriever:
     def __init__(self):
         """初始化检索器。"""
         self.embedding_engine = EmbeddingEngine()
-        self.paragraph_chunk_store = ParagraphChunkStore(QdrantStore())
+        self.index_chunk_store = IndexChunkStore(QdrantStore())
 
     def search(
         self,
@@ -39,7 +38,7 @@ class Retriever:
             结果列表，每项包含: text, type, score, section_id, ai_desc_text
         """
         query_vector = self.embedding_engine.embed_query(query)
-        results = self.paragraph_chunk_store.query(
+        results = self.index_chunk_store.query(
             query_vector=query_vector,
             query_text=query,
             limit=top_k,

@@ -25,9 +25,9 @@ class RetrieveChunk:
     """章节文本"""
     text: str = ""
 
-"""段落分片数据类"""
+"""索引分片数据类"""
 @dataclass
-class ParagraphChunk:
+class IndexChunk:
     """主键id"""
     id: int = 0
     """所属章节id"""
@@ -45,7 +45,7 @@ class ParagraphChunk:
 
 
 def _merge_small_chunks(
-    chunks: List[ParagraphChunk] | List[RetrieveChunk],
+    chunks: List[IndexChunk] | List[RetrieveChunk],
     min_size: int,
     max_size: int
 ) -> None:
@@ -152,16 +152,16 @@ class Chunker:
     def chunk_section_chunks(
         self,
         section_chunks: List[RetrieveChunk],
-    ) -> List[ParagraphChunk]:
-        """将 RetrieveChunk 列表按段落拆分为 ParagraphChunk 列表"""
-        result: List[ParagraphChunk] = []
+    ) -> List[IndexChunk]:
+        """将 RetrieveChunk 列表按段落拆分为 IndexChunk 列表"""
+        result: List[IndexChunk] = []
 
         for section in section_chunks:
-            section_result: List[ParagraphChunk] = []
+            section_result: List[IndexChunk] = []
 
             # 剔除开头的标题行；普通文本按换行分片，代码块整体保留
             #text_without_heading = self._HEADING_LINE_RE.sub("", section.text).strip()
-            paragraphs: List[str] = []
+            index_texts: List[str] = []
             code_lines: List[str] = []
             code_fence_length = 0
 
@@ -175,7 +175,7 @@ class Chunker:
                         and len(fence_match.group(1)) >= code_fence_length
                         and not fence_match.group(2).strip()
                     ):
-                        paragraphs.append("\n".join(code_lines))
+                        index_texts.append("\n".join(code_lines))
                         code_lines = []
                         code_fence_length = 0
                     continue
@@ -184,34 +184,34 @@ class Chunker:
                     code_lines = [line]
                     code_fence_length = len(fence_match.group(1))
                 elif line.strip():
-                    paragraphs.append(line)
+                    index_texts.append(line)
 
             # 未闭合的代码块保留至章节末尾，避免丢失内容
             if code_lines:
-                paragraphs.append("\n".join(code_lines))
+                index_texts.append("\n".join(code_lines))
 
-            for para in paragraphs:
-                para = para.strip()
-                if not para:
+            for index_text in index_texts:
+                index_text = index_text.strip()
+                if not index_text:
                     continue
 
-                chunk_type = self._detect_paragraph_type(para)
-                chunk = ParagraphChunk(
+                chunk_type = self._detect_index_type(index_text)
+                chunk = IndexChunk(
                     retrieve_id=section.id,
-                    text=para,
+                    text=index_text,
                     type=chunk_type,
                 )
                 section_result.append(chunk)
 
-            _merge_small_chunks(section_result, config.chunk.paragraph_chunk_min_size, config.chunk.paragraph_chunk_max_size)
-            for paragraph_index, chunk in enumerate(section_result, start=1):
-                chunk.id = int(f"{section.id}{paragraph_index:0{3}d}")
+            _merge_small_chunks(section_result, config.chunk.index_chunk_min_size, config.chunk.index_chunk_max_size)
+            for index_chunk_index, chunk in enumerate(section_result, start=1):
+                chunk.id = int(f"{section.id}{index_chunk_index:0{3}d}")
 
             result.extend(section_result)
 
         return result
 
-    def _detect_paragraph_type(self, text: str) -> str:
+    def _detect_index_type(self, text: str) -> str:
         """检测段落类型：code / image / table / text"""
         first_line = text.lstrip().splitlines()[0] if text.strip() else ""
         if self._CODE_FENCE_RE.match(first_line):

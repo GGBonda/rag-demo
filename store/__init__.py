@@ -1,12 +1,12 @@
 """Qdrant 存储模块。"""
 
 from .markdown_document import MarkdownDocumentStore
-from .paragraph_chunk import ParagraphChunkStore
+from .index_chunk import IndexChunkStore
 from .qdrant_store import (
     MARKDOWN_DOCUMENT_COLLECTION,
-    PARAGRAPH_CHUNK_COLLECTION,
-    PARAGRAPH_DENSE_VECTOR,
-    PARAGRAPH_TEXT_SPARSE_VECTOR,
+    INDEX_CHUNK_COLLECTION,
+    INDEX_DENSE_VECTOR,
+    INDEX_TEXT_SPARSE_VECTOR,
     RETRIEVE_CHUNK_COLLECTION,
     QdrantStore,
 )
@@ -15,10 +15,10 @@ from .retrieve_chunk import RetrieveChunkStore
 __all__ = [
     "MARKDOWN_DOCUMENT_COLLECTION",
     "MarkdownDocumentStore",
-    "PARAGRAPH_CHUNK_COLLECTION",
-    "PARAGRAPH_DENSE_VECTOR",
-    "PARAGRAPH_TEXT_SPARSE_VECTOR",
-    "ParagraphChunkStore",
+    "INDEX_CHUNK_COLLECTION",
+    "INDEX_DENSE_VECTOR",
+    "INDEX_TEXT_SPARSE_VECTOR",
+    "IndexChunkStore",
     "QdrantStore",
     "RETRIEVE_CHUNK_COLLECTION",
     "RetrieveChunkStore",

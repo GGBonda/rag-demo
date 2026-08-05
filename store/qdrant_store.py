@@ -13,9 +13,9 @@ from config import config
 
 MARKDOWN_DOCUMENT_COLLECTION = "markdown_document"
 RETRIEVE_CHUNK_COLLECTION = "retrieve_chunk"
-PARAGRAPH_CHUNK_COLLECTION = "paragraph_chunk"
-PARAGRAPH_DENSE_VECTOR = "dense"
-PARAGRAPH_TEXT_SPARSE_VECTOR = "sparse"
+INDEX_CHUNK_COLLECTION = "index_chunk"
+INDEX_DENSE_VECTOR = "dense"
+INDEX_TEXT_SPARSE_VECTOR = "sparse"
 
 
 class QdrantStore:
@@ -63,15 +63,15 @@ class QdrantStore:
             vectors_config={},
         )
         self._create_collection_if_missing(
-            PARAGRAPH_CHUNK_COLLECTION,
+            INDEX_CHUNK_COLLECTION,
             vectors_config={
-                PARAGRAPH_DENSE_VECTOR: models.VectorParams(
+                INDEX_DENSE_VECTOR: models.VectorParams(
                     size=self.vector_size,
                     distance=models.Distance.COSINE,
                 ),
             },
             sparse_vectors_config={
-                PARAGRAPH_TEXT_SPARSE_VECTOR: models.SparseVectorParams(
+                INDEX_TEXT_SPARSE_VECTOR: models.SparseVectorParams(
                     modifier=models.Modifier.IDF,
                 )
             },
@@ -106,9 +106,9 @@ class QdrantStore:
 
 __all__ = [
     "MARKDOWN_DOCUMENT_COLLECTION",
-    "PARAGRAPH_CHUNK_COLLECTION",
-    "PARAGRAPH_DENSE_VECTOR",
-    "PARAGRAPH_TEXT_SPARSE_VECTOR",
+    "INDEX_CHUNK_COLLECTION",
+    "INDEX_DENSE_VECTOR",
+    "INDEX_TEXT_SPARSE_VECTOR",
     "QdrantStore",
     "RETRIEVE_CHUNK_COLLECTION",
 ]

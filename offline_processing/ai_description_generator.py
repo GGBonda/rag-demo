@@ -1,17 +1,17 @@
 """
 RAG 知识库 - AI 描述生成模块
-为表格、图片和代码类型的 ParagraphChunk 生成便于检索的文本描述。
+为表格、图片和代码类型的 IndexChunk 生成便于检索的文本描述。
 """
 
 import re
 import time
 
 from config import config
-from .chunker import ParagraphChunk
+from .chunker import IndexChunk
 
 
-class ParagraphChunkDescriptionGenerator:
-    """使用 OpenAI 兼容的大语言模型补充 ParagraphChunk.ai_desc_text。"""
+class IndexChunkDescriptionGenerator:
+    """使用 OpenAI 兼容的大语言模型补充 IndexChunk.ai_desc_text。"""
 
     SUPPORTED_TYPES = {"table", "image", "code"}
     _DATA_IMAGE_RE = re.compile(
@@ -55,7 +55,7 @@ class ParagraphChunkDescriptionGenerator:
             api_key_name="OPENAI_VISUAL_API_KEY",
         )
 
-    def generate_descriptions(self, chunks: list[ParagraphChunk]) -> None:
+    def generate_descriptions(self, chunks: list[IndexChunk]) -> None:
         """原地为 table、image、code 类型的分片生成 ai_desc_text。"""
         for chunk in chunks:
             if chunk.type not in self.SUPPORTED_TYPES or not chunk.text.strip():
@@ -107,7 +107,7 @@ class ParagraphChunkDescriptionGenerator:
             client_options["base_url"] = resolved_base_url
         return OpenAI(**client_options)
 
-    def _build_user_content(self, chunk: ParagraphChunk) -> str | list[dict]:
+    def _build_user_content(self, chunk: IndexChunk) -> str | list[dict]:
         prompt = self._TYPE_PROMPTS[chunk.type]
         if chunk.type != "image":
             return f"{prompt}\n\n原始内容：\n{chunk.text}"
