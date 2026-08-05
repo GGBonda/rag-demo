@@ -99,7 +99,6 @@ class IndexChunkStore:
                 text=(point.payload or {}).get("text", ""),
                 type=(point.payload or {}).get("type", "text"),
                 ai_desc_text=(point.payload or {}).get("ai_desc_text", ""),
-                score=point.score,
             )
             for point in response.points
         ]

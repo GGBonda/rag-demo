@@ -1,6 +1,4 @@
 """retrieve_chunk 集合的数据操作。"""
-from collections.abc import Mapping, Sequence
-
 from qdrant_client import models
 
 from .qdrant_store import RETRIEVE_CHUNK_COLLECTION
@@ -16,7 +14,7 @@ class RetrieveChunkStore:
     def __init__(self, store: QdrantStore) -> None:
         self._store = store
 
-    def batch_insert(self, chunks: Sequence[RetrieveChunk]) -> int:
+    def batch_insert(self, chunks: list[RetrieveChunk]) -> int:
         """批量写入 RetrieveChunk，并返回写入数量。"""
         if not chunks:
             return 0
@@ -44,14 +42,14 @@ class RetrieveChunkStore:
         """清空数据，保留集合及索引。"""
         self._store.clear_collection(RETRIEVE_CHUNK_COLLECTION)
 
-    def get_by_ids(self, ids: Sequence[int]) -> list[RetrieveChunk]:
+    def get_by_ids(self, ids: list[int]) -> list[RetrieveChunk]:
         """根据 ID 列表批量查询 RetrieveChunk，并按输入 ID 顺序返回。"""
         if not ids:
             return []
 
         records = self._store.client.retrieve(
             collection_name=RETRIEVE_CHUNK_COLLECTION,
-            ids=list(ids),
+            ids=ids,
             with_payload=True,
             with_vectors=False,
         )
