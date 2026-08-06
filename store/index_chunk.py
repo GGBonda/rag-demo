@@ -58,7 +58,7 @@ class IndexChunkStore:
         query_vector: list[float],
         query_text: str,
         limit: int = 5,
-        score_threshold: float | None = None,
+        dense_score_threshold: float | None = None,
     ) -> list[IndexChunk]:
         """使用稠密向量和 BM25 稀疏向量混合查询 IndexChunk。"""
         if len(query_vector) != self._store.vector_size:
@@ -75,7 +75,7 @@ class IndexChunkStore:
                     query=query_vector,
                     using=INDEX_DENSE_VECTOR,
                     limit=limit,
-                    score_threshold=score_threshold,
+                    score_threshold=dense_score_threshold,
                 ),
                 models.Prefetch(
                     query=self._bm25_document(query_text),

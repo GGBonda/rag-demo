@@ -1,16 +1,14 @@
 import json
-from unittest import TestCase
+from dataclasses import asdict
 
 from realtime_response.retriever import Retriever
 
 
 def test_search() -> None:
-    results = Retriever().search(
-        query="产品实例id的含义",
-        top_k=5,
-        similarity_threshold=0.1
-    )
-    print(json.dumps(results, ensure_ascii=False, indent=2))
+    results = Retriever().search(query="区域店项目的背景是什么")
+
+    print("="*600)
+    print([hit.id for hit in results])
 
 if __name__ == "__main__":
     test_search()

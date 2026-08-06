@@ -3,12 +3,14 @@
 从 Qdrant 向量数据库中检索与用户问题最相关的 IndexChunk
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
+from offline_processing.chunker import RetrieveChunk
 from offline_processing.embedding_engine import EmbeddingEngine
 from store import (
     IndexChunkStore,
     QdrantStore,
+    RetrieveChunkStore,
 )
 
 
@@ -18,37 +20,19 @@ class Retriever:
     def __init__(self):
         """初始化检索器。"""
         self.embedding_engine = EmbeddingEngine()
-        self.index_chunk_store = IndexChunkStore(QdrantStore())
+        qdrant_store = QdrantStore()
+        self.index_chunk_store = IndexChunkStore(qdrant_store)
+        self.retrieve_chunk_store = RetrieveChunkStore(qdrant_store)
 
-    def search(
-        self,
-        query: str,
-        top_k: int = 5,
-        similarity_threshold: Optional[float] = None,
-    ) -> List[Dict[str, Any]]:
-        """
-        检索与查询最相关的文档片段
-
-        Args:
-            query: 查询文本
-            top_k: 返回最相似的前 K 个结果
-            similarity_threshold: 相似度阈值（0~1）
-
-        Returns:
-            结果列表，每项包含: text, section_id
-        """
+    def search(self, query: str) -> list[RetrieveChunk]:
         query_vector = self.embedding_engine.embed_query(query)
+
         results = self.index_chunk_store.query(
             query_vector=query_vector,
             query_text=query,
-            limit=top_k,
-            score_threshold=similarity_threshold,
+            limit=5,
+            dense_score_threshold=0.5,
         )
 
-        return [
-            {
-                "text": hit.text,
-                "retrieve_id": hit.retrieve_id,
-            }
-            for hit in results
-        ]
+        retrieve_ids = list(dict.fromkeys(hit.retrieve_id for hit in results))
+        return self.retrieve_chunk_store.get_by_ids(retrieve_ids)

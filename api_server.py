@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from offline_processing.chunker import RetrieveChunk
 from realtime_response import Retriever
 
 app = FastAPI(
@@ -40,7 +41,7 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
-    results: list[dict]
+    results: list[RetrieveChunk]
 
 
 @app.get("/api/health")
