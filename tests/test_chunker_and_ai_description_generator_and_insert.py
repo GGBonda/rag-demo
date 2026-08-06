@@ -1,4 +1,5 @@
 import sys
+from collections import Counter
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -51,19 +52,22 @@ def ingest_all_markdown_documents() -> None:
             file_name=markdown_path.name,
             markdown_text=markdown_path.read_text(encoding="utf-8"),
         )
-        document_retrieve_chunks = chunker.chunk_markdown(document)
-        document_index_chunks = chunker.chunk_section_chunks(
-            document_retrieve_chunks
+        retrieve_chunks = chunker.chunk_markdown(document)
+        index_chunks = chunker.chunk_section_chunks(
+            retrieve_chunks
         )
 
-        description_generator.generate_image_code_table_desc(document_index_chunks)
-        document_index_chunks.extend(description_generator.generate_retrieve_desc(document_retrieve_chunks, len(document_index_chunks) + 1))
+        description_generator.generate_image_code_table_desc(index_chunks)
 
-        embedding_engine.embed_chunks(document_index_chunks)
+        retrieve_id_index_chunk_count_dict = dict(Counter(chunk.retrieve_id for chunk in index_chunks))
+        for chunk in retrieve_chunks:
+            index_chunks.extend(description_generator.generate_retrieve_desc([chunk], retrieve_id_index_chunk_count_dict[chunk.id]))
+
+        embedding_engine.embed_chunks(index_chunks)
 
         document_count = markdown_document_store.batch_insert([document])
-        retrieve_count = retrieve_chunk_store.batch_insert(document_retrieve_chunks)
-        index_count = index_chunk_store.batch_insert(document_index_chunks)
+        retrieve_count = retrieve_chunk_store.batch_insert(retrieve_chunks)
+        index_count = index_chunk_store.batch_insert(index_chunks)
 
         print("入库完成:")
         print(f"  MarkdownDocument: {document_count}")
