@@ -8,7 +8,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from offline_processing.ai_description_generator import (
     AIDescriptionGenerator,
 )
-from offline_processing.chunker import Chunker
+from offline_processing.chunker import Chunker, detect_text_type
 from offline_processing.document_loader_mineru import MarkdownDocument
 
 
@@ -33,15 +33,12 @@ def process_markdown_document(file_name: str) -> None:
     section_chunks = chunker.chunk_markdown(document)
     index_chunks = chunker.chunk_section_chunks(section_chunks)
 
-    description_generator.generate_descriptions(index_chunks)
+    description_generator.generate_image_code_table_desc(index_chunks)
 
     for chunk in index_chunks:
-        if chunk.type in AI_DESCRIPTION_TYPES:
-            print(f"{chunk.id}========================================AI 生成描述{chunk.type}=================================================")
-            print(chunk.ai_desc_text)
-        else:
-            print(f"{chunk.id}===============================================================================================================")
-            print(chunk.text)
+        chunk_type = detect_text_type(chunk.text)
+        print(f"{chunk_type}{chunk.id}===============================================================================================================")
+        print(chunk.text)
 
 
 def main() -> None:

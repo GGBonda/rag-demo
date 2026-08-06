@@ -13,6 +13,9 @@ from .document_loader_mineru import MarkdownDocument
 
 from config import config
 
+_TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
+_HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
+
 """召回分片数据类"""
 @dataclass
 class RetrieveChunk:
@@ -39,11 +42,6 @@ class IndexChunk:
 
 """判断文本是否为 Markdown 或 HTML 表格"""
 def _is_markdown_table(text: str) -> bool:
-    # 用于识别 Markdown 表格分隔行的正则（如 |---|:---:|---|）
-    _TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
-    # 用于识别完整的 HTML table 标签，兼容属性、大小写和多行内容
-    _HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
-
     stripped_text = text.strip()
     if _HTML_TABLE_RE.search(stripped_text):
         return True
@@ -67,6 +65,53 @@ DATA_IMAGE_RE = re.compile(
     r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
     r"\)"
 )
+
+
+def _normal_text_length(text: str) -> int:
+    """计算普通文本长度，忽略图片、表格和 fenced code block。"""
+    lines_without_code: List[str] = []
+    code_fence_length = 0
+
+    for line in text.splitlines(keepends=True):
+        fence_match = CODE_FENCE_RE.match(line)
+        if code_fence_length:
+            if (
+                fence_match
+                and len(fence_match.group(1)) >= code_fence_length
+                and not fence_match.group(2).strip()
+            ):
+                code_fence_length = 0
+            continue
+
+        if fence_match:
+            code_fence_length = len(fence_match.group(1))
+            continue
+
+        lines_without_code.append(line)
+
+    normal_text = "".join(lines_without_code)
+    normal_text = _HTML_TABLE_RE.sub("", normal_text)
+    normal_text = DATA_IMAGE_RE.sub("", normal_text)
+
+    lines = normal_text.splitlines(keepends=True)
+    table_line_indexes: set[int] = set()
+    for index, line in enumerate(lines):
+        if not _TABLE_SEPARATOR_RE.match(line.strip()):
+            continue
+        if index == 0 or "|" not in lines[index - 1]:
+            continue
+
+        table_line_indexes.update((index - 1, index))
+        next_index = index + 1
+        while next_index < len(lines) and "|" in lines[next_index]:
+            table_line_indexes.add(next_index)
+            next_index += 1
+
+    return sum(
+        len(line)
+        for index, line in enumerate(lines)
+        if index not in table_line_indexes
+    )
 
 """检测文本类型：code / image / table / text。"""
 def detect_text_type(text: str) -> str:
@@ -138,10 +183,10 @@ class Chunker:
         return result
 
     @staticmethod
-    def _merge_small_retrieve_chunks(self, chunks: List[RetrieveChunk]) -> None:
+    def _merge_small_retrieve_chunks(chunks: List[RetrieveChunk]) -> None:
+        """原地将普通文本部分过小的 RetrieveChunk 向后合并。"""
         min_size = config.chunk.retrieve_chunk_min_size
         max_size = config.chunk.retrieve_chunk_max_size
-        """原地将过小的 RetrieveChunk 向后合并。"""
         if min_size < 0 or max_size < min_size:
             raise ValueError("需要满足 0 <= min_size <= max_size")
 
@@ -151,12 +196,12 @@ class Chunker:
             chunk = chunks[index]
 
             while (
-                len(chunk.text) < min_size
+                _normal_text_length(chunk.text) < min_size
                 and index + 1 < len(chunks)
             ):
                 next_chunk = chunks[index + 1]
                 merged_text = f"{chunk.text}\n{next_chunk.text}"
-                if len(merged_text) > max_size:
+                if _normal_text_length(merged_text) > max_size:
                     break
 
                 next_chunk.text = merged_text
@@ -166,7 +211,7 @@ class Chunker:
             index += 1
 
     @staticmethod
-    def _merge_small_index_chunks(self, chunks: List[IndexChunk]) -> None:
+    def _merge_small_index_chunks(chunks: List[IndexChunk]) -> None:
         """原地合并过小的纯文本 IndexChunk。"""
         min_size = config.chunk.index_chunk_min_size
         max_size = config.chunk.index_chunk_max_size

@@ -36,10 +36,14 @@ def ingest_all_markdown_documents() -> None:
     chunker = Chunker()
     description_generator = AIDescriptionGenerator()
     embedding_engine = EmbeddingEngine()
+    qdrant_store = QdrantStore()
+    markdown_document_store = MarkdownDocumentStore(qdrant_store)
+    retrieve_chunk_store = RetrieveChunkStore(qdrant_store)
+    index_chunk_store = IndexChunkStore(qdrant_store)
 
-    documents = []
-    retrieve_chunks = []
-    index_chunks = []
+    markdown_document_store.clear()
+    retrieve_chunk_store.clear()
+    index_chunk_store.clear()
 
     for document_id, markdown_path in enumerate(markdown_paths, start=1):
         print(f"正在处理: {markdown_path.name}")
@@ -51,31 +55,20 @@ def ingest_all_markdown_documents() -> None:
         document_index_chunks = chunker.chunk_section_chunks(
             document_retrieve_chunks
         )
-        description_generator.generate_descriptions(document_index_chunks)
 
-        documents.append(document)
-        retrieve_chunks.extend(document_retrieve_chunks)
-        index_chunks.extend(document_index_chunks)
+        description_generator.generate_image_code_table_desc(document_index_chunks)
+        document_index_chunks.extend(description_generator.generate_retrieve_desc(document_retrieve_chunks, len(document_index_chunks) + 1))
 
-    embedding_engine.embed_chunks(index_chunks)
+        embedding_engine.embed_chunks(document_index_chunks)
 
-    qdrant_store = QdrantStore()
-    markdown_document_store = MarkdownDocumentStore(qdrant_store)
-    retrieve_chunk_store = RetrieveChunkStore(qdrant_store)
-    index_chunk_store = IndexChunkStore(qdrant_store)
+        document_count = markdown_document_store.batch_insert([document])
+        retrieve_count = retrieve_chunk_store.batch_insert(document_retrieve_chunks)
+        index_count = index_chunk_store.batch_insert(document_index_chunks)
 
-    markdown_document_store.clear()
-    retrieve_chunk_store.clear()
-    index_chunk_store.clear()
-
-    document_count = markdown_document_store.batch_insert(documents)
-    retrieve_count = retrieve_chunk_store.batch_insert(retrieve_chunks)
-    index_count = index_chunk_store.batch_insert(index_chunks)
-
-    print("入库完成:")
-    print(f"  MarkdownDocument: {document_count}")
-    print(f"  RetrieveChunk: {retrieve_count}")
-    print(f"  IndexChunk: {index_count}")
+        print("入库完成:")
+        print(f"  MarkdownDocument: {document_count}")
+        print(f"  RetrieveChunk: {retrieve_count}")
+        print(f"  IndexChunk: {index_count}")
 
 
 if __name__ == "__main__":

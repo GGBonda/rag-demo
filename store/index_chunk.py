@@ -33,13 +33,11 @@ class IndexChunkStore:
                     id=chunk.id,
                     vector={
                         INDEX_DENSE_VECTOR: chunk.embedding_vector,
-                        INDEX_TEXT_SPARSE_VECTOR: self._bm25_document(chunk.ai_desc_text if chunk.ai_desc_text.strip() else chunk.text)
+                        INDEX_TEXT_SPARSE_VECTOR: self._bm25_document(chunk.text)
                     },
                     payload={
                         "retrieve_id": chunk.retrieve_id,
-                        "text": chunk.text,
-                        "type": chunk.type,
-                        "ai_desc_text": chunk.ai_desc_text,
+                        "text": chunk.text
                     },
                 )
             )
@@ -97,8 +95,6 @@ class IndexChunkStore:
                 id=point.id,
                 retrieve_id=(point.payload or {}).get("retrieve_id", 0),
                 text=(point.payload or {}).get("text", ""),
-                type=(point.payload or {}).get("type", "text"),
-                ai_desc_text=(point.payload or {}).get("ai_desc_text", ""),
             )
             for point in response.points
         ]

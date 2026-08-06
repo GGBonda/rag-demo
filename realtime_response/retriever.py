@@ -35,7 +35,7 @@ class Retriever:
             similarity_threshold: 相似度阈值（0~1）
 
         Returns:
-            结果列表，每项包含: text, type, section_id, ai_desc_text
+            结果列表，每项包含: text, section_id
         """
         query_vector = self.embedding_engine.embed_query(query)
         results = self.index_chunk_store.query(
@@ -48,9 +48,7 @@ class Retriever:
         return [
             {
                 "text": hit.text,
-                "type": hit.type,
-                "section_id": hit.retrieve_id,
-                "ai_desc_text": hit.ai_desc_text,
+                "retrieve_id": hit.retrieve_id,
             }
             for hit in results
         ]

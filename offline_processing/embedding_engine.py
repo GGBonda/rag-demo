@@ -46,19 +46,13 @@ class EmbeddingEngine:
         """
         对 IndexChunk 列表进行 embedding。
 
-        - text 类型: 对 text 字段进行 embedding
-        - table / image 类型: 对 ai_desc_text 字段进行 embedding
+        - 对 text 字段进行 embedding
         - 生成的向量赋值到 embedding_vector 字段
 
         Args:
             chunks: IndexChunk 列表
         """
-        texts = [
-            chunk.ai_desc_text
-            if chunk.type in ("table", "image") and chunk.ai_desc_text
-            else chunk.text
-            for chunk in chunks
-        ]
+        texts = [chunk.text for chunk in chunks]
 
         embeddings = self._embed_texts(texts)
 
