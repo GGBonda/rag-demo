@@ -28,6 +28,30 @@ class RetrieveChunk:
     """章节文本"""
     text: str = ""
 
+    def analyse_rerank(self) -> list[dict[str, str]]:
+        """将 Markdown 正文解析为 Qwen3-VL-Rerank 的多模态文档。"""
+        images: list[str] = []
+
+        def replace_image(match: re.Match) -> str:
+            images.append(match.group(2))
+            image_number = len(images)
+            alt_text = match.group(1).strip()
+            if alt_text:
+                return f"[图片{image_number}：{alt_text}]"
+            return f"[图片{image_number}]"
+
+        text = DATA_IMAGE_RE.sub(replace_image, self.text)
+        if not images:
+            return [{"text": text}]
+
+        return [
+            {
+                "text": f"{text}\n当前视觉输入对应[图片{image_number}]",
+                "image": image,
+            }
+            for image_number, image in enumerate(images, start=1)
+        ]
+
 """索引分片数据类"""
 @dataclass
 class IndexChunk:

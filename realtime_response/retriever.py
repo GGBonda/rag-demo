@@ -7,6 +7,7 @@ from typing import Optional
 
 from offline_processing.chunker import RetrieveChunk
 from offline_processing.embedding_engine import EmbeddingEngine
+from realtime_response.cross_encoder_reranker import CrossEncoderReranker
 from store import (
     IndexChunkStore,
     QdrantStore,
@@ -24,7 +25,7 @@ class Retriever:
         self.index_chunk_store = IndexChunkStore(qdrant_store)
         self.retrieve_chunk_store = RetrieveChunkStore(qdrant_store)
 
-    def search(self, query: str) -> list[RetrieveChunk]:
+    def search(self, query: str, top_k: int = 5) -> list[RetrieveChunk]:
         query_vector = self.embedding_engine.embed_query(query)
 
         results = self.index_chunk_store.query(
@@ -36,4 +37,9 @@ class Retriever:
         )
 
         retrieve_ids = list(dict.fromkeys(hit.retrieve_id for hit in results))
-        return self.retrieve_chunk_store.get_by_ids(retrieve_ids)
+        chunks = self.retrieve_chunk_store.get_by_ids(retrieve_ids)
+        return CrossEncoderReranker().rerank(
+            query=query,
+            chunks=chunks,
+            top_k=top_k,
+        )

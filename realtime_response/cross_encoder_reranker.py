@@ -1,5 +1,7 @@
 """调用远程 Cross-Encoder 模型对召回分片进行精排。"""
 
+import time
+
 import requests
 
 from config import config
@@ -35,36 +37,72 @@ class CrossEncoderReranker:
             return []
 
         top_n = min(top_k, len(chunks))
+        documents: list[dict[str, str]] = []
+        document_chunk_indexes: list[int] = []
+        for chunk_index, chunk in enumerate(chunks):
+            chunk_documents = chunk.analyse_rerank()
+            documents.extend(chunk_documents)
+            document_chunk_indexes.extend(
+                [chunk_index] * len(chunk_documents)
+            )
+
+        print(
+            f"[Cross-Encoder 精排] 请求开始: model={self._model}, "
+            f"chunks={len(chunks)}, documents={len(documents)}, "
+            f"top_n={top_n}"
+        )
+        start_time = time.perf_counter()
         response = requests.post(
-            f"{self._base_url}/rerank",
+            self._base_url,
             headers={
                 "Authorization": f"Bearer {self._api_key}",
                 "Content-Type": "application/json",
             },
             json={
                 "model": self._model,
-                "query": query,
-                "documents": [chunk.text for chunk in chunks],
-                "top_n": top_n,
-                "return_documents": False,
+                "input": {
+                    "query": {"text": query},
+                    "documents": documents,
+                },
+                "parameters": {
+                    "top_n": len(documents),
+                    "return_documents": False,
+                },
             },
             timeout=30,
         )
+        print(
+            f"[Cross-Encoder 精排] 请求结束: "
+            f"response={response.text}，耗时={time.perf_counter() - start_time:.2f}秒"
+        )
         response.raise_for_status()
 
-        results = response.json().get("results")
+        output = response.json().get("output")
+        results = output.get("results") if isinstance(output, dict) else None
         if not isinstance(results, list):
-            raise RuntimeError("Cross-Encoder API 响应中缺少 results 列表")
+            raise RuntimeError(
+                "Cross-Encoder API 响应中缺少 output.results 列表"
+            )
 
         try:
-            ranked_results = sorted(
-                results,
-                key=lambda item: float(item["relevance_score"]),
+            chunk_scores: dict[int, float] = {}
+            for item in results:
+                document_index = int(item["index"])
+                chunk_index = document_chunk_indexes[document_index]
+                score = float(item["relevance_score"])
+                chunk_scores[chunk_index] = max(
+                    score,
+                    chunk_scores.get(chunk_index, float("-inf")),
+                )
+
+            ranked_chunk_indexes = sorted(
+                chunk_scores,
+                key=chunk_scores.__getitem__,
                 reverse=True,
             )
             ranked_chunks = [
-                chunks[int(item["index"])]
-                for item in ranked_results[:top_n]
+                chunks[chunk_index]
+                for chunk_index in ranked_chunk_indexes[:top_n]
             ]
         except (KeyError, TypeError, ValueError, IndexError) as exc:
             raise RuntimeError(
