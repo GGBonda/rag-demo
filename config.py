@@ -34,6 +34,13 @@ class VisionLLMConfig:
     openai_base_url: str = os.getenv("OPENAI_VISUAL_BASE_URL", "")
     openai_model: str = os.getenv("OPENAI_VISUAL_MODEL", "")
 
+@dataclass
+class CrossEncoderConfig:
+    """Cross-Encoder 精排服务配置"""
+    base_url: str = os.getenv("CROSS_ENCODER_BASE_URL", "")
+    api_key: str = os.getenv("CROSS_ENCODER_API_KEY", "")
+    model: str = os.getenv("CROSS_ENCODER_MODEL", "")
+
 
 @dataclass
 class MinerUConfig:
@@ -67,6 +74,7 @@ class Config:
     vision_llm: VisionLLMConfig = field(default_factory=VisionLLMConfig)
     mineru: MinerUConfig = field(default_factory=MinerUConfig)
     qdrant: QdrantConfig = field(default_factory=QdrantConfig)
+    cross_encoder: CrossEncoderConfig = field(default_factory=CrossEncoderConfig)
     chunk: ChunkConfig = field(default_factory=ChunkConfig)
 
 

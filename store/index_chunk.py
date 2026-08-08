@@ -57,8 +57,9 @@ class IndexChunkStore:
         self,
         query_vector: list[float],
         query_text: str,
-        limit: int = 5,
+        limit: int = 20,
         dense_score_threshold: float | None = None,
+        candidate_limit: int = 50,
     ) -> list[IndexChunk]:
         """使用稠密向量和 BM25 稀疏向量混合查询 IndexChunk。"""
         if len(query_vector) != self._store.vector_size:
@@ -67,6 +68,10 @@ class IndexChunkStore:
             raise ValueError("query_text 不能为空")
         if limit <= 0:
             raise ValueError("limit 必须为正整数")
+        if candidate_limit is None:
+            candidate_limit = limit
+        if candidate_limit < limit:
+            raise ValueError("candidate_limit 不能小于 limit")
 
         response = self._store.client.query_points(
             collection_name=INDEX_CHUNK_COLLECTION,
@@ -74,13 +79,13 @@ class IndexChunkStore:
                 models.Prefetch(
                     query=query_vector,
                     using=INDEX_DENSE_VECTOR,
-                    limit=limit,
+                    limit=candidate_limit,
                     score_threshold=dense_score_threshold,
                 ),
                 models.Prefetch(
                     query=self._bm25_document(query_text),
                     using=INDEX_TEXT_SPARSE_VECTOR,
-                    limit=limit,
+                    limit=candidate_limit,
                 ),
             ],
             query=models.RrfQuery(

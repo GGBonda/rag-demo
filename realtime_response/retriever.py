@@ -30,7 +30,8 @@ class Retriever:
         results = self.index_chunk_store.query(
             query_vector=query_vector,
             query_text=query,
-            limit=5,
+            limit=20,
+            candidate_limit=50,
             dense_score_threshold=0.5,
         )
 
