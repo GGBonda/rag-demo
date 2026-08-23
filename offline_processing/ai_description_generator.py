@@ -6,9 +6,31 @@ RAG 知识库 - AI 描述生成模块
 
 import json
 import time
+from pathlib import Path
+from string import Template
 
 from config import config
 from .chunker import DATA_IMAGE_RE, IndexChunk, RetrieveChunk, detect_text_type
+
+
+PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+SYSTEM_PROMPT_MARKER = "[system]"
+USER_PROMPT_MARKER = "[user]"
+
+
+def _load_prompt(file_name: str) -> tuple[str, Template]:
+    content = (PROMPTS_DIR / file_name).read_text(encoding="utf-8").strip()
+    system_marker, separator, user_content = content.partition(USER_PROMPT_MARKER)
+    if not separator or not system_marker.strip().startswith(SYSTEM_PROMPT_MARKER):
+        raise ValueError(
+            f"提示词文件 {file_name} 必须包含 [system] 和 [user] 标记"
+        )
+
+    system_content = system_marker.strip()[len(SYSTEM_PROMPT_MARKER):].strip()
+    user_content = user_content.strip()
+    if not system_content or not user_content:
+        raise ValueError(f"提示词文件 {file_name} 的 system 和 user 内容不能为空")
+    return system_content, Template(user_content)
 
 
 class AIDescriptionGenerator:
@@ -16,22 +38,11 @@ class AIDescriptionGenerator:
     RETRIEVE_DESC_MAX_RETRIES = 3
     SUPPORTED_TYPES = {"table", "image", "code"}
     _TYPE_PROMPTS = {
-        "table": (
-            "请描述下面表格的主题、字段含义、关键数据和重要结论。"
-            "描述应完整、准确，便于后续语义检索，且不超过500字；"
-            "只输出描述正文。"
-        ),
-        "code": (
-            "请描述下面代码的用途、主要逻辑、输入输出和关键实现。"
-            "描述应完整、准确，便于后续语义检索，且不超过500字；"
-            "只输出描述正文。"
-        ),
-        "image": (
-            "请描述图片中的主体、文字、结构、流程和关键结论。"
-            "描述应完整、准确，便于后续语义检索，且不超过500字；"
-            "只输出描述正文。"
-        ),
+        "table": _load_prompt("ai_desc_for_table.txt"),
+        "code": _load_prompt("ai_desc_for_code.txt"),
+        "image": _load_prompt("ai_desc_for_image.txt"),
     }
+    _RETRIEVE_PROMPT = _load_prompt("ai_desc_question_for_retrieve_chunk.txt")
 
     def __init__(self):
         self.text_model = config.llm.openai_pro_model.strip()
@@ -73,10 +84,7 @@ class AIDescriptionGenerator:
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "你是文档内容分析助手，负责将非纯文本内容转换为"
-                            "准确、清晰的中文文本描述。不要虚构原内容中没有的信息。"
-                        ),
+                        "content": self._TYPE_PROMPTS[chunk_type][0],
                     },
                     {
                         "role": "user",
@@ -128,11 +136,7 @@ class AIDescriptionGenerator:
                         messages=[
                             {
                                 "role": "system",
-                                "content": (
-                                    "你是文档检索索引生成助手。请严格基于提供的正文和图片，"
-                                    "从不同角度生成准确、清晰的中文简介和用户可能提出的问题，"
-                                    "不要虚构原内容中没有的信息。"
-                                ),
+                                "content": self._RETRIEVE_PROMPT[0],
                             },
                             {
                                 "role": "user",
@@ -214,16 +218,13 @@ class AIDescriptionGenerator:
         question_count: int,
         image_matches: list[tuple[str, str]],
     ) -> str | list[dict]:
-        prompt = (
-            f"请生成 {description_count} 条简介，每条不超过100字；"
-            f"再生成用户围绕本章节可能提出的 {question_count} 个问题，"
-            "每个问题不超过50字。"
-            "仅返回 JSON 对象，不要输出其他内容，格式为："
-            '{"descriptions":["简介"],"questions":["问题"]}。\n\n'
-            f"章节标题：{retrieve_chunk.title_path}\n"
-        )
         if not image_matches:
-            return f"{prompt}章节正文：\n{retrieve_chunk.text}"
+            return self._RETRIEVE_PROMPT[1].substitute(
+                description_count=description_count,
+                question_count=question_count,
+                title_path=retrieve_chunk.title_path,
+                content=retrieve_chunk.text,
+            )
 
         context = DATA_IMAGE_RE.sub(
             lambda match: (
@@ -236,7 +237,12 @@ class AIDescriptionGenerator:
         content: list[dict] = [
             {
                 "type": "text",
-                "text": f"{prompt}章节正文：\n{context}",
+                "text": self._RETRIEVE_PROMPT[1].substitute(
+                    description_count=description_count,
+                    question_count=question_count,
+                    title_path=retrieve_chunk.title_path,
+                    content=context,
+                ),
             }
         ]
         content.extend(
@@ -329,13 +335,16 @@ class AIDescriptionGenerator:
         chunk: IndexChunk,
         chunk_type: str,
     ) -> str | list[dict]:
-        prompt = self._TYPE_PROMPTS[chunk_type]
+        prompt = self._TYPE_PROMPTS[chunk_type][1]
         if chunk_type != "image":
-            return f"{prompt}\n\n原始内容：\n{chunk.text}"
+            return prompt.substitute(content=chunk.text)
 
         image_matches = DATA_IMAGE_RE.findall(chunk.text)
         if not image_matches:
-            return f"{prompt}\n\n原始内容：\n{chunk.text}"
+            return prompt.substitute(
+                content_heading="原始内容",
+                content=chunk.text,
+            )
 
         context = DATA_IMAGE_RE.sub(
             lambda match: f"[图片说明：{match.group(1)}]" if match.group(1) else "[图片]",
@@ -344,7 +353,10 @@ class AIDescriptionGenerator:
         content: list[dict] = [
             {
                 "type": "text",
-                "text": f"{prompt}\n\n图片上下文：\n{context}",
+                "text": prompt.substitute(
+                    content_heading="图片上下文",
+                    content=context,
+                ),
             }
         ]
         content.extend(
