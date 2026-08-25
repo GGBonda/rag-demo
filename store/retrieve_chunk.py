@@ -4,7 +4,7 @@ from qdrant_client import models
 from .qdrant_store import RETRIEVE_CHUNK_COLLECTION
 from .qdrant_store import QdrantStore
 
-from offline_processing.chunker import RetrieveChunk
+from model import RetrieveChunk
 
 
 

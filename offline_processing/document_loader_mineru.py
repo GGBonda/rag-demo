@@ -11,35 +11,13 @@ import re
 import tempfile
 import time
 import zipfile
-from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
 
 from config import config
-
-
-@dataclass
-class MarkdownDocument:
-    """PDF 解析后的 Markdown 文档"""
-    """主键 ID 直接用时间戳作为id，demo项目，不考虑太复杂的唯一性标识方案"""
-    id: int = field(default_factory=lambda: int(time.time()))
-    """文件名"""
-    file_name: str = ""
-    """作者"""
-    author: str = ""
-    """原文件 URL"""
-    original_file_url: str = ""
-    """文档创建时间"""
-    created_at: datetime | None = None
-    """所属业务团队 ID"""
-    business_team_id: int | None = None
-    """Markdown 文本"""
-    markdown_text: str = ""
-    """原文件内容的 MD5 摘要"""
-    md5: str = ""
+from model import MarkdownDocument
 
 
 class MinerUDocumentLoader:

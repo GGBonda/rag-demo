@@ -6,7 +6,7 @@ from qdrant_client import models
 from .qdrant_store import MARKDOWN_DOCUMENT_COLLECTION
 from .qdrant_store import QdrantStore
 
-from offline_processing.document_loader_mineru import MarkdownDocument
+from model import MarkdownDocument
 
 
 class MarkdownDocumentStore:

@@ -9,7 +9,7 @@ from offline_processing.ai_description_generator import (
     AIDescriptionGenerator,
 )
 from offline_processing.chunker import Chunker
-from offline_processing.document_loader_mineru import MarkdownDocument
+from model import MarkdownDocument
 from offline_processing.embedding_engine import EmbeddingEngine
 from store import (
     MarkdownDocumentStore,

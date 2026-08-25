@@ -4,65 +4,16 @@ RAG 知识库 - 文档分片模块
 """
 
 import re
-from dataclasses import dataclass
 from typing import List
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
-from .document_loader_mineru import MarkdownDocument
-
 from config import config
+from model import IndexChunk, MarkdownDocument
+from model.retrieve_chunk import DATA_IMAGE_RE, RetrieveChunk
 
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
 _HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
-
-"""召回分片数据类"""
-@dataclass
-class RetrieveChunk:
-    """主键id"""
-    id: int = 0
-    """所属文档id"""
-    doc_id: int = 0
-    """章节标题路径"""
-    title_path: str = ""
-    """章节文本"""
-    text: str = ""
-
-    def analyse_rerank(self) -> list[dict[str, str]]:
-        """将 Markdown 正文解析为 Qwen3-VL-Rerank 的多模态文档。"""
-        images: list[str] = []
-
-        def replace_image(match: re.Match) -> str:
-            images.append(match.group(2))
-            image_number = len(images)
-            alt_text = match.group(1).strip()
-            if alt_text:
-                return f"[图片{image_number}：{alt_text}]"
-            return f"[图片{image_number}]"
-
-        text = DATA_IMAGE_RE.sub(replace_image, self.text)
-        if not images:
-            return [{"text": text}]
-
-        return [
-            {
-                "text": f"{text}\n当前视觉输入对应[图片{image_number}]",
-                "image": image,
-            }
-            for image_number, image in enumerate(images, start=1)
-        ]
-
-"""索引分片数据类"""
-@dataclass
-class IndexChunk:
-    """主键id"""
-    id: int = 0
-    """所属章节id"""
-    retrieve_id: int = 0
-    """索引文本"""
-    text: str = ""
-    """向量"""
-    embedding_vector: list[float] | None = None
 
 """判断文本是否为 Markdown 或 HTML 表格"""
 def _is_markdown_table(text: str) -> bool:
@@ -81,15 +32,6 @@ def _is_markdown_table(text: str) -> bool:
 
 # 用于识别三个或更多反引号组成的代码块边界
 CODE_FENCE_RE = re.compile(r"^\s*(`{3,})(.*)$")
-
-# 用于识别并提取 Markdown 中的 base64 图片
-DATA_IMAGE_RE = re.compile(
-    r"!\[([^\]]*)\]\("
-    r"(data:image/[^;]+;base64,[^\s)]+)"
-    r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
-    r"\)"
-)
-
 
 def _normal_text_length(text: str) -> int:
     """计算普通文本长度，忽略图片、表格和 fenced code block。"""

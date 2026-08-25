@@ -9,7 +9,7 @@ from offline_processing.ai_description_generator import (
     AIDescriptionGenerator,
 )
 from offline_processing.chunker import Chunker, detect_text_type
-from offline_processing.document_loader_mineru import MarkdownDocument
+from model import MarkdownDocument
 
 
 AI_DESCRIPTION_TYPES = {"table", "code", "image"}

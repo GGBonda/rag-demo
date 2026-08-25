@@ -5,7 +5,7 @@
 
 from typing import Optional
 
-from offline_processing.chunker import RetrieveChunk
+from model import RetrieveChunk
 from offline_processing.embedding_engine import EmbeddingEngine
 from realtime_response.cross_encoder_reranker import CrossEncoderReranker
 from store import (

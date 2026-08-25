@@ -10,7 +10,7 @@ from .qdrant_store import (
 )
 from .qdrant_store import QdrantStore
 
-from offline_processing.chunker import IndexChunk
+from model import IndexChunk
 
 
 class IndexChunkStore:

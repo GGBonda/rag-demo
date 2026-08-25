@@ -10,7 +10,10 @@ from pathlib import Path
 from string import Template
 
 from config import config
-from .chunker import DATA_IMAGE_RE, IndexChunk, RetrieveChunk, detect_text_type
+from model import IndexChunk, RetrieveChunk
+from model.retrieve_chunk import DATA_IMAGE_RE
+
+from .chunker import detect_text_type
 
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"

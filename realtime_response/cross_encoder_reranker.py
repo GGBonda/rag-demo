@@ -5,7 +5,7 @@ import time
 import requests
 
 from config import config
-from offline_processing.chunker import RetrieveChunk
+from model import RetrieveChunk
 
 
 class CrossEncoderReranker:
