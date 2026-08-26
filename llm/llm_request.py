@@ -10,7 +10,6 @@ from config import config
 
 CHAT_COMPLETION_TIMEOUT_SECONDS = 120
 CROSS_ENCODER_TIMEOUT_SECONDS = 30
-DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 SYSTEM_PROMPT_MARKER = "[system]"
 USER_PROMPT_MARKER = "[user]"
@@ -128,18 +127,10 @@ def request_cross_encoder_rerank(
     documents: list[dict[str, str]],
 ) -> list[dict]:
     """调用远程 Cross-Encoder rerank API。"""
-    url = _require_config(
-        config.cross_encoder.base_url,
-        "CROSS_ENCODER_BASE_URL",
-    ).rstrip("/")
-    api_key = _require_config(
-        config.cross_encoder.api_key,
-        "CROSS_ENCODER_API_KEY",
-    )
-    model = _require_config(
-        config.cross_encoder.model,
-        "CROSS_ENCODER_MODEL",
-    )
+    url = config.cross_encoder.base_url
+    api_key = config.cross_encoder.api_key
+    model = config.cross_encoder.model
+
     print(
         f"[Cross-Encoder 精排] 请求开始: model={model}, "
         f"documents={len(documents)}"
@@ -178,34 +169,15 @@ def request_cross_encoder_rerank(
 
 def _resolve_chat_config(use_vision_model: bool) -> tuple[str, str, str]:
     if use_vision_model:
-        api_key = _require_config(
-            config.vision_llm.openai_api_key,
-            "OPENAI_VISUAL_API_KEY",
-        )
+        api_key = config.vision_llm.openai_api_key.strip()
         base_url = config.vision_llm.openai_base_url.strip()
-        model = _require_config(
-            config.vision_llm.openai_model,
-            "OPENAI_VISUAL_MODEL",
-        )
+        model = config.vision_llm.openai_model.strip()
     else:
-        api_key = _require_config(
-            config.llm.openai_api_key,
-            "OPENAI_API_KEY",
-        )
+        api_key = config.llm.openai_api_key.strip()
         base_url = config.llm.openai_base_url.strip()
-        model = _require_config(
-            config.llm.openai_pro_model,
-            "OPENAI_PRO_MODEL",
-        )
+        model = config.llm.openai_pro_model.strip()
 
-    return api_key, (base_url or DEFAULT_OPENAI_BASE_URL).rstrip("/"), model
-
-
-def _require_config(value: str, environment_name: str) -> str:
-    resolved_value = value.strip()
-    if not resolved_value:
-        raise ValueError(f"未配置 {environment_name} 环境变量")
-    return resolved_value
+    return api_key, base_url, model
 
 
 def _load_system_prompt(file_name: str) -> str:
