@@ -12,6 +12,12 @@ from string import Template
 from config import config
 from data_class import IndexChunk, RetrieveChunk
 from data_class.retrieve_chunk import DATA_IMAGE_RE
+from llm import (
+    request_code_description,
+    request_image_description,
+    request_retrieve_description,
+    request_table_description,
+)
 
 from .chunker import detect_text_type
 
@@ -40,6 +46,11 @@ class AIDescriptionGenerator:
 
     RETRIEVE_DESC_MAX_RETRIES = 3
     SUPPORTED_TYPES = {"table", "image", "code"}
+    _TYPE_REQUESTS = {
+        "table": request_table_description,
+        "code": request_code_description,
+        "image": request_image_description,
+    }
     _TYPE_PROMPTS = {
         "table": _load_prompt("ai_desc_for_table.txt"),
         "code": _load_prompt("ai_desc_for_code.txt"),
@@ -47,60 +58,22 @@ class AIDescriptionGenerator:
     }
     _RETRIEVE_PROMPT = _load_prompt("ai_desc_question_for_retrieve_chunk.txt")
 
-    def __init__(self):
-        self.text_model = config.llm.openai_pro_model.strip()
-        if not self.text_model:
-            raise ValueError("未配置 OPENAI_PRO_MODEL 环境变量")
-
-        self.vision_model = config.vision_llm.openai_model.strip()
-        if not self.vision_model:
-            raise ValueError("未配置 OPENAI_VISUAL_MODEL 环境变量")
-
-        self._text_client = self._create_client(
-            api_key=config.llm.openai_api_key,
-            base_url=config.llm.openai_base_url,
-            api_key_name="OPENAI_API_KEY",
-        )
-        self._vision_client = self._create_client(
-            api_key=config.vision_llm.openai_api_key,
-            base_url=config.vision_llm.openai_base_url,
-            api_key_name="OPENAI_VISUAL_API_KEY",
-        )
-
     def generate_image_code_table_desc(self, chunks: list[IndexChunk]) -> None:
         for chunk in chunks:
             chunk_type = detect_text_type(chunk.text)
             if chunk_type not in self.SUPPORTED_TYPES or not chunk.text.strip():
                 continue
 
-            if chunk_type == "image":
-                client = self._vision_client
-                model = self.vision_model
-            else:
-                client = self._text_client
-                model = self.text_model
-
-            print(f"[AI 描述] 开始调用模型: model={model}, chunk_type={chunk_type}, chunk_id={chunk.id}")
+            print(f"[AI 描述] 开始调用模型: chunk_type={chunk_type}, chunk_id={chunk.id}")
             start_time = time.perf_counter()
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": self._TYPE_PROMPTS[chunk_type][0],
-                    },
-                    {
-                        "role": "user",
-                        "content": self._build_user_content(chunk, chunk_type),
-                    },
-                ],
+            content, _ = self._TYPE_REQUESTS[chunk_type](
+                self._build_user_content(chunk, chunk_type)
             )
             print(f"  [AI 描述] 模型调用结束: 耗时={time.perf_counter() - start_time:.2f}秒")
 
-            description = response.choices[0].message.content
-            if not description or not description.strip():
+            if not content or not content.strip():
                 raise RuntimeError(f"模型未返回 {chunk_type} 分片的描述")
-            chunk.text = description.strip()
+            chunk.text = content.strip()
 
     def generate_retrieve_desc(
         self,
@@ -120,42 +93,22 @@ class AIDescriptionGenerator:
             for retry_count in range(self.RETRIEVE_DESC_MAX_RETRIES + 1):
                 try:
                     image_matches = DATA_IMAGE_RE.findall(retrieve_chunk.text)
-                    if image_matches:
-                        client = self._vision_client
-                        model = self.vision_model
-                    else:
-                        client = self._text_client
-                        model = self.text_model
-
                     print(
-                        f"[索引简介] 开始调用模型: model={model}, "
-                        f"retrieve_chunk_id={retrieve_chunk.id}, "
+                        f"[索引简介] 开始调用模型: retrieve_chunk_id={retrieve_chunk.id}, "
                         f"尝试次数={retry_count + 1}/{self.RETRIEVE_DESC_MAX_RETRIES + 1}"
                     )
                     start_time = time.perf_counter()
-                    response = client.chat.completions.create(
-                        model=model,
-                        response_format={"type": "json_object"},
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": self._RETRIEVE_PROMPT[0],
-                            },
-                            {
-                                "role": "user",
-                                "content": self._build_index_chunk_user_content(
-                                    retrieve_chunk,
-                                    description_count,
-                                    question_count,
-                                    image_matches,
-                                ),
-                            },
-                        ],
+                    user_content = self._build_index_chunk_user_content(
+                        retrieve_chunk,
+                        description_count,
+                        question_count,
+                        image_matches,
+                    )
+                    content, finish_reason = request_retrieve_description(
+                        user_content
                     )
                     print(f"[召回文档简介] 模型调用结束: 耗时={time.perf_counter() - start_time:.2f}秒")
 
-                    choice = response.choices[0]
-                    content = choice.message.content
                     try:
                         descriptions, questions = self._parse_index_content(
                             content,
@@ -163,7 +116,7 @@ class AIDescriptionGenerator:
                             question_count,
                         )
                     except Exception:
-                        print(f"[召回文档简介] 响应校验失败: finish_reason={getattr(choice, 'finish_reason', None)}, content={content!r}")
+                        print(f"[召回文档简介] 响应校验失败: finish_reason={finish_reason}, content={content!r}")
                         raise
                     description_chunks = [
                         IndexChunk(
@@ -318,20 +271,6 @@ class AIDescriptionGenerator:
                 raise RuntimeError(f"{content_name}必须为非空字符串")
             normalized_values.append(value.strip())
         return normalized_values
-
-    @staticmethod
-    def _create_client(api_key: str, base_url: str, api_key_name: str):
-        resolved_api_key = api_key.strip()
-        if not resolved_api_key:
-            raise ValueError(f"未配置 {api_key_name} 环境变量")
-
-        from openai import OpenAI
-
-        client_options = {"api_key": resolved_api_key}
-        resolved_base_url = base_url.strip()
-        if resolved_base_url:
-            client_options["base_url"] = resolved_base_url
-        return OpenAI(**client_options)
 
     def _build_user_content(
         self,
