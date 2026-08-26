@@ -17,7 +17,7 @@ from urllib.parse import unquote, urlparse
 import requests
 
 from config import config
-from model import MarkdownDocument
+from data_class import MarkdownDocument
 
 
 class MinerUDocumentLoader:

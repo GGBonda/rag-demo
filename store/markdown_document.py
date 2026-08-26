@@ -6,7 +6,7 @@ from qdrant_client import models
 from .qdrant_store import MARKDOWN_DOCUMENT_COLLECTION
 from .qdrant_store import QdrantStore
 
-from model import MarkdownDocument
+from data_class import MarkdownDocument
 
 
 class MarkdownDocumentStore:
@@ -33,7 +33,6 @@ class MarkdownDocumentStore:
                         if document.created_at is not None
                         else None
                     ),
-                    "business_team_id": document.business_team_id,
                     "markdown_text": document.markdown_text,
                     "md5": document.md5,
                 },

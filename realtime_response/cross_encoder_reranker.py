@@ -5,7 +5,7 @@ import time
 import requests
 
 from config import config
-from model import RetrieveChunk
+from data_class import RetrieveChunk
 
 
 class CrossEncoderReranker:
@@ -47,7 +47,7 @@ class CrossEncoderReranker:
             )
 
         print(
-            f"[Cross-Encoder 精排] 请求开始: model={self._model}, "
+            f"[Cross-Encoder 精排] 请求开始: data_class={self._model}, "
             f"chunks={len(chunks)}, documents={len(documents)}, "
             f"top_n={top_n}"
         )
@@ -59,7 +59,7 @@ class CrossEncoderReranker:
                 "Content-Type": "application/json",
             },
             json={
-                "model": self._model,
+                "data_class": self._model,
                 "input": {
                     "query": {"text": query},
                     "documents": documents,

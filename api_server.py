@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from model import RetrieveChunk
+from data_class import RetrieveChunk
 from realtime_response import Retriever
 
 app = FastAPI(

@@ -10,7 +10,7 @@ from .qdrant_store import (
 )
 from .qdrant_store import QdrantStore
 
-from model import IndexChunk
+from data_class import IndexChunk
 
 
 class IndexChunkStore:

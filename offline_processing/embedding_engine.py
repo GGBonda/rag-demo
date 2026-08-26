@@ -6,7 +6,7 @@ RAG 知识库 - Embedding 引擎模块
 from typing import List
 
 from config import config
-from model import IndexChunk
+from data_class import IndexChunk
 
 
 class EmbeddingEngine:

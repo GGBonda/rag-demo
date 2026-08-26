@@ -10,8 +10,8 @@ from pathlib import Path
 from string import Template
 
 from config import config
-from model import IndexChunk, RetrieveChunk
-from model.retrieve_chunk import DATA_IMAGE_RE
+from data_class import IndexChunk, RetrieveChunk
+from data_class.retrieve_chunk import DATA_IMAGE_RE
 
 from .chunker import detect_text_type
 

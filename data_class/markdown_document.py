@@ -18,8 +18,6 @@ class MarkdownDocument:
     original_file_url: str = ""
     """文档创建时间"""
     created_at: datetime | None = None
-    """所属业务团队 ID"""
-    business_team_id: int | None = None
     """Markdown 文本"""
     markdown_text: str = ""
     """原文件内容的 MD5 摘要"""

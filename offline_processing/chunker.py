@@ -9,8 +9,8 @@ from typing import List
 from langchain_text_splitters import MarkdownHeaderTextSplitter
 
 from config import config
-from model import IndexChunk, MarkdownDocument
-from model.retrieve_chunk import DATA_IMAGE_RE, RetrieveChunk
+from data_class import IndexChunk, MarkdownDocument
+from data_class.retrieve_chunk import DATA_IMAGE_RE, RetrieveChunk
 
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?[\s:]*-{2,}[\s:]*(?:\|[\s:]*-{2,}[\s:]*)*\|?$")
 _HTML_TABLE_RE = re.compile(r"<table\b[^>]*>.*?</table\s*>", re.IGNORECASE | re.DOTALL)
