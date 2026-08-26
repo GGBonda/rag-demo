@@ -1,5 +1,6 @@
 """统一封装项目中的大模型 HTTP 请求。"""
 
+import time
 from pathlib import Path
 
 import requests
@@ -28,6 +29,7 @@ def request_table_description(
         user_content=user_content,
         system_prompt_file=_TABLE_SYSTEM_PROMPT,
         use_vision_model=False,
+        task_name="表格描述",
     )
 
 
@@ -39,6 +41,7 @@ def request_code_description(
         user_content=user_content,
         system_prompt_file=_CODE_SYSTEM_PROMPT,
         use_vision_model=False,
+        task_name="代码描述",
     )
 
 
@@ -50,6 +53,7 @@ def request_image_description(
         user_content=user_content,
         system_prompt_file=_IMAGE_SYSTEM_PROMPT,
         use_vision_model=True,
+        task_name="图片描述",
     )
 
 
@@ -61,6 +65,7 @@ def request_retrieve_description(
         user_content=user_content,
         system_prompt_file=_RETRIEVE_SYSTEM_PROMPT,
         use_vision_model=isinstance(user_content, list),
+        task_name="召回文档简介",
         response_format={"type": "json_object"},
     )
 
@@ -69,6 +74,7 @@ def _request_chat_completion(
     user_content: str | list[dict],
     system_prompt_file: str,
     use_vision_model: bool,
+    task_name: str,
     response_format: dict | None = None,
 ) -> tuple[str | None, str | None]:
     api_key, base_url, model = _resolve_chat_config(use_vision_model)
@@ -85,12 +91,18 @@ def _request_chat_completion(
     if response_format is not None:
         payload["response_format"] = response_format
 
+    print(f"[大模型请求] 请求开始: task={task_name}, model={model}")
+    start_time = time.perf_counter()
     response_data = _post_json(
         url=f"{base_url.rstrip('/')}/chat/completions",
         api_key=api_key,
         payload=payload,
         timeout=CHAT_COMPLETION_TIMEOUT_SECONDS,
         api_name="大模型 API",
+    )
+    print(
+        f"[大模型请求] 请求结束: task={task_name}, model={model}, "
+        f"耗时={time.perf_counter() - start_time:.2f}秒"
     )
 
     try:
@@ -128,6 +140,11 @@ def request_cross_encoder_rerank(
         config.cross_encoder.model,
         "CROSS_ENCODER_MODEL",
     )
+    print(
+        f"[Cross-Encoder 精排] 请求开始: model={model}, "
+        f"documents={len(documents)}"
+    )
+    start_time = time.perf_counter()
     response_data = _post_json(
         url=url,
         api_key=api_key,
@@ -144,6 +161,10 @@ def request_cross_encoder_rerank(
         },
         timeout=CROSS_ENCODER_TIMEOUT_SECONDS,
         api_name="Cross-Encoder API",
+    )
+    print(
+        f"[Cross-Encoder 精排] 请求结束: model={model}, "
+        f"耗时={time.perf_counter() - start_time:.2f}秒"
     )
 
     output = response_data.get("output")

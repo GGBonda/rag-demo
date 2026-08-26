@@ -5,7 +5,6 @@ RAG 知识库 - AI 描述生成模块
 """
 
 import json
-import time
 from pathlib import Path
 from string import Template
 
@@ -64,12 +63,9 @@ class AIDescriptionGenerator:
             if chunk_type not in self.SUPPORTED_TYPES or not chunk.text.strip():
                 continue
 
-            print(f"[AI 描述] 开始调用模型: chunk_type={chunk_type}, chunk_id={chunk.id}")
-            start_time = time.perf_counter()
             content, _ = self._TYPE_REQUESTS[chunk_type](
                 self._build_user_content(chunk, chunk_type)
             )
-            print(f"  [AI 描述] 模型调用结束: 耗时={time.perf_counter() - start_time:.2f}秒")
 
             if not content or not content.strip():
                 raise RuntimeError(f"模型未返回 {chunk_type} 分片的描述")
@@ -93,11 +89,6 @@ class AIDescriptionGenerator:
             for retry_count in range(self.RETRIEVE_DESC_MAX_RETRIES + 1):
                 try:
                     image_matches = DATA_IMAGE_RE.findall(retrieve_chunk.text)
-                    print(
-                        f"[索引简介] 开始调用模型: retrieve_chunk_id={retrieve_chunk.id}, "
-                        f"尝试次数={retry_count + 1}/{self.RETRIEVE_DESC_MAX_RETRIES + 1}"
-                    )
-                    start_time = time.perf_counter()
                     user_content = self._build_index_chunk_user_content(
                         retrieve_chunk,
                         description_count,
@@ -107,7 +98,6 @@ class AIDescriptionGenerator:
                     content, finish_reason = request_retrieve_description(
                         user_content
                     )
-                    print(f"[召回文档简介] 模型调用结束: 耗时={time.perf_counter() - start_time:.2f}秒")
 
                     try:
                         descriptions, questions = self._parse_index_content(

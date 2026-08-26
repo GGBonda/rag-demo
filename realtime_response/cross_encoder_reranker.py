@@ -1,7 +1,5 @@
 """调用远程 Cross-Encoder 模型对召回分片进行精排。"""
 
-import time
-
 from data_class import RetrieveChunk
 from llm import request_cross_encoder_rerank
 
@@ -31,19 +29,9 @@ class CrossEncoderReranker:
                 [chunk_index] * len(chunk_documents)
             )
 
-        print(
-            f"[Cross-Encoder 精排] 请求开始: chunks={len(chunks)}, "
-            f"documents={len(documents)}, "
-            f"top_n={top_n}"
-        )
-        start_time = time.perf_counter()
         results = request_cross_encoder_rerank(
             query=query,
             documents=documents,
-        )
-        print(
-            f"[Cross-Encoder 精排] 请求结束: "
-            f"耗时={time.perf_counter() - start_time:.2f}秒"
         )
 
         try:
