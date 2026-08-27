@@ -1,7 +1,7 @@
 """调用远程 Cross-Encoder 模型对召回分片进行精排。"""
 
 from data_class import RetrieveChunk
-from llm import request_cross_encoder_rerank
+from model_request import request_cross_encoder_rerank
 
 
 class CrossEncoderReranker:

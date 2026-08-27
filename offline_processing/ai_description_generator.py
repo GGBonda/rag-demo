@@ -5,40 +5,19 @@ RAG 知识库 - AI 描述生成模块
 """
 
 import json
-from pathlib import Path
-from string import Template
 
 from config import config
 from data_class import IndexChunk, RetrieveChunk
 from data_class.retrieve_chunk import DATA_IMAGE_RE
-from llm import (
+from model_request import (
     request_code_description,
     request_image_description,
     request_retrieve_description,
     request_table_description,
 )
+from prompts import load_prompt
 
 from .chunker import detect_text_type
-
-
-PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
-SYSTEM_PROMPT_MARKER = "[system]"
-USER_PROMPT_MARKER = "[user]"
-
-
-def _load_prompt(file_name: str) -> tuple[str, Template]:
-    content = (PROMPTS_DIR / file_name).read_text(encoding="utf-8").strip()
-    system_marker, separator, user_content = content.partition(USER_PROMPT_MARKER)
-    if not separator or not system_marker.strip().startswith(SYSTEM_PROMPT_MARKER):
-        raise ValueError(
-            f"提示词文件 {file_name} 必须包含 [system] 和 [user] 标记"
-        )
-
-    system_content = system_marker.strip()[len(SYSTEM_PROMPT_MARKER):].strip()
-    user_content = user_content.strip()
-    if not system_content or not user_content:
-        raise ValueError(f"提示词文件 {file_name} 的 system 和 user 内容不能为空")
-    return system_content, Template(user_content)
 
 
 class AIDescriptionGenerator:
@@ -51,11 +30,11 @@ class AIDescriptionGenerator:
         "image": request_image_description,
     }
     _TYPE_PROMPTS = {
-        "table": _load_prompt("ai_desc_for_table.txt"),
-        "code": _load_prompt("ai_desc_for_code.txt"),
-        "image": _load_prompt("ai_desc_for_image.txt"),
+        "table": load_prompt("ai_desc_for_table.txt"),
+        "code": load_prompt("ai_desc_for_code.txt"),
+        "image": load_prompt("ai_desc_for_image.txt"),
     }
-    _RETRIEVE_PROMPT = _load_prompt("ai_desc_question_for_retrieve_chunk.txt")
+    _RETRIEVE_PROMPT = load_prompt("ai_desc_question_for_retrieve_chunk.txt")
 
     def generate_image_code_table_desc(self, chunks: list[IndexChunk]) -> None:
         for chunk in chunks:

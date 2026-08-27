@@ -2,10 +2,12 @@
 
 from .llm_request import (
     request_code_description,
-    request_cross_encoder_rerank,
     request_image_description,
     request_retrieve_description,
     request_table_description,
+)
+from .cross_encoder_rerank_request import (
+    request_cross_encoder_rerank
 )
 
 __all__ = [

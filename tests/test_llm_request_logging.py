@@ -4,13 +4,13 @@ from contextlib import redirect_stdout
 from unittest.mock import patch
 
 from config import config
-from llm import request_code_description, request_cross_encoder_rerank
+from model_request import request_code_description, request_cross_encoder_rerank
 
 
 class LLMRequestLoggingTest(unittest.TestCase):
 
-    @patch("llm.llm_request.time.perf_counter", side_effect=[10.0, 11.25])
-    @patch("llm.llm_request.requests.post")
+    @patch("model_request.llm_request.time.perf_counter", side_effect=[10.0, 11.25])
+    @patch("model_request.llm_request.requests.post")
     def test_chat_request_logs_in_llm_request(self, post, _perf_counter) -> None:
         post.return_value.json.return_value = {
             "choices": [
@@ -38,8 +38,8 @@ class LLMRequestLoggingTest(unittest.TestCase):
             output.getvalue(),
         )
 
-    @patch("llm.llm_request.time.perf_counter", side_effect=[20.0, 20.5])
-    @patch("llm.llm_request.requests.post")
+    @patch("model_request.llm_request.time.perf_counter", side_effect=[20.0, 20.5])
+    @patch("model_request.llm_request.requests.post")
     def test_rerank_request_logs_in_llm_request(self, post, _perf_counter) -> None:
         post.return_value.json.return_value = {"output": {"results": []}}
 
