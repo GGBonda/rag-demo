@@ -23,7 +23,6 @@ from .chunker import detect_text_type
 class AIDescriptionGenerator:
 
     RETRIEVE_DESC_MAX_RETRIES = 3
-    SUPPORTED_TYPES = {"table", "image", "code"}
     _TYPE_REQUESTS = {
         "table": request_table_description,
         "code": request_code_description,
@@ -39,8 +38,6 @@ class AIDescriptionGenerator:
     def generate_image_code_table_desc(self, chunks: list[IndexChunk]) -> None:
         for chunk in chunks:
             chunk_type = detect_text_type(chunk.text)
-            if chunk_type not in self.SUPPORTED_TYPES or not chunk.text.strip():
-                continue
 
             content, _ = self._TYPE_REQUESTS[chunk_type](
                 self._build_user_content(chunk, chunk_type)

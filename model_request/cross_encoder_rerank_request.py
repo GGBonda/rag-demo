@@ -26,7 +26,7 @@ def request_cross_encoder_rerank(
             },
         },
         timeout=30,
-        api_name="Cross-Encoder 精排",
+        opt_desc="Cross-Encoder 精排",
     )
 
     output = response_data.get("output")

@@ -3,11 +3,9 @@
 从 Qdrant 向量数据库中检索与用户问题最相关的 IndexChunk
 """
 
-from typing import Optional
-
 from data_class import RetrieveChunk
 from offline_processing.embedding_engine import EmbeddingEngine
-from realtime_response.cross_encoder_reranker import CrossEncoderReranker
+from realtime_response.cross_encoder_reranker import rerank
 from store import (
     IndexChunkStore,
     QdrantStore,
@@ -38,7 +36,7 @@ class Retriever:
 
         retrieve_ids = list(dict.fromkeys(hit.retrieve_id for hit in results))
         chunks = self.retrieve_chunk_store.get_by_ids(retrieve_ids)
-        return CrossEncoderReranker().rerank(
+        return rerank(
             query=query,
             chunks=chunks,
             top_k=top_k,

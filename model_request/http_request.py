@@ -6,9 +6,9 @@ def post_json(
     api_key: str,
     payload: dict[str, object],
     timeout: int,
-    api_name: str,
+    opt_desc: str,
 ) -> dict:
-    print(f"[{api_name}] 请求开始")
+    print(f"[{opt_desc}] 请求开始")
 
     start_time = time.perf_counter()
     response = requests.post(
@@ -20,14 +20,14 @@ def post_json(
         json=payload,
         timeout=timeout,
     )
-    print(f"[{api_name}] 请求结束, 耗时={time.perf_counter() - start_time:.2f}秒")
+    print(f"[{opt_desc}] 请求结束, 耗时={time.perf_counter() - start_time:.2f}秒")
 
     response.raise_for_status()
 
     try:
         response_data = response.json()
     except ValueError as exc:
-        raise RuntimeError(f"{api_name} 返回的内容不是有效 JSON") from exc
+        raise RuntimeError(f"{opt_desc} 返回的内容不是有效 JSON") from exc
     if not isinstance(response_data, dict):
-        raise RuntimeError(f"{api_name} 返回的内容必须是 JSON 对象")
+        raise RuntimeError(f"{opt_desc} 返回的内容必须是 JSON 对象")
     return response_data

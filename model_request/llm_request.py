@@ -78,7 +78,7 @@ def _request_chat_completion(
         api_key=api_key,
         payload=payload,
         timeout=120,
-        api_name="大模型 API",
+        opt_desc=task_name,
     )
 
     try:
