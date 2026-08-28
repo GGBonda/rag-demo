@@ -1,39 +1,35 @@
 from .http_request import post_json
 
 from config import config
-from prompts import load_system_prompt
 
 def request_table_description(
-    user_content: str | list[dict],
+    messages: list[dict]
 ) -> tuple[str | None, str | None]:
     """请求生成表格描述。"""
     return _request_chat_completion(
-        user_content=user_content,
-        system_prompt_file="ai_desc_for_table.txt",
+        messages,
         use_vision_model=False,
         task_name="表格描述",
     )
 
 
 def request_code_description(
-    user_content: str | list[dict],
+    messages: list[dict]
 ) -> tuple[str | None, str | None]:
     """请求生成代码描述。"""
     return _request_chat_completion(
-        user_content=user_content,
-        system_prompt_file="ai_desc_for_code.txt",
+        messages,
         use_vision_model=False,
         task_name="代码描述",
     )
 
 
 def request_image_description(
-    user_content: str | list[dict],
+    messages: list[dict]
 ) -> tuple[str | None, str | None]:
     """请求生成图片描述。"""
     return _request_chat_completion(
-        user_content=user_content,
-        system_prompt_file="ai_desc_for_image.txt",
+        messages,
         use_vision_model=True,
         task_name="图片描述",
     )
@@ -53,8 +49,7 @@ def request_retrieve_description(
 
 
 def _request_chat_completion(
-    user_content: str | list[dict],
-    system_prompt_file: str,
+    messages: list[dict],
     use_vision_model: bool,
     task_name: str,
     response_format: dict | None = None,
@@ -62,13 +57,7 @@ def _request_chat_completion(
     api_key, base_url, model = _resolve_chat_config(use_vision_model)
     payload: dict[str, object] = {
         "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": load_system_prompt(system_prompt_file),
-            },
-            {"role": "user", "content": user_content},
-        ],
+        "messages": messages,
     }
     if response_format is not None:
         payload["response_format"] = response_format

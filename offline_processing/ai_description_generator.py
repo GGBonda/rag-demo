@@ -5,6 +5,7 @@ RAG 知识库 - AI 描述生成模块
 """
 
 import json
+import re
 
 from config import config
 from data_class import IndexChunk, RetrieveChunk
@@ -19,6 +20,39 @@ from prompts import load_prompt
 
 from .chunker import detect_text_type
 
+
+_MARKDOWN_IMAGE_RE = re.compile(
+        r"!\[[^\]]*\]\(\s*"
+        r"(?P<url>"
+        r"(?:https?://[^\s)]+)"
+        r"|(?:data:image/[^;\s]+;base64,[^\s)]+)"
+        r")"
+        r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?"
+        r"\s*\)"
+    )
+
+def _build_multimodal_user_content(user_content: str) -> list[dict]:
+    """按 Markdown 图片拆分文本，生成多模态消息内容。"""
+    content: list[dict] = []
+    text_start = 0
+
+    for image_match in _MARKDOWN_IMAGE_RE.finditer(user_content):
+        text = user_content[text_start:image_match.start()].strip()
+        if text:
+            content.append({"type": "text", "text": text})
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": image_match.group("url")},
+            }
+        )
+        text_start = image_match.end()
+
+    text = user_content[text_start:].strip()
+    if text:
+        content.append({"type": "text", "text": text})
+
+    return content
 
 class AIDescriptionGenerator:
 
@@ -38,10 +72,14 @@ class AIDescriptionGenerator:
     def generate_image_code_table_desc(self, chunks: list[IndexChunk]) -> None:
         for chunk in chunks:
             chunk_type = detect_text_type(chunk.text)
+            sys_prompt, user_prompt = self._TYPE_PROMPTS[chunk_type]
 
-            content, _ = self._TYPE_REQUESTS[chunk_type](
-                self._build_user_content(chunk, chunk_type)
-            )
+            messages = [
+                {"role": "system","content": sys_prompt},
+                {"role": "user", "content": _build_multimodal_user_content(user_prompt.substitute(content=chunk.text))},
+            ]
+
+            content, _ = self._TYPE_REQUESTS[chunk_type](messages)
 
             if not content or not content.strip():
                 raise RuntimeError(f"模型未返回 {chunk_type} 分片的描述")
@@ -237,41 +275,3 @@ class AIDescriptionGenerator:
                 raise RuntimeError(f"{content_name}必须为非空字符串")
             normalized_values.append(value.strip())
         return normalized_values
-
-    def _build_user_content(
-        self,
-        chunk: IndexChunk,
-        chunk_type: str,
-    ) -> str | list[dict]:
-        prompt = self._TYPE_PROMPTS[chunk_type][1]
-        if chunk_type != "image":
-            return prompt.substitute(content=chunk.text)
-
-        image_matches = DATA_IMAGE_RE.findall(chunk.text)
-        if not image_matches:
-            return prompt.substitute(
-                content_heading="原始内容",
-                content=chunk.text,
-            )
-
-        context = DATA_IMAGE_RE.sub(
-            lambda match: f"[图片说明：{match.group(1)}]" if match.group(1) else "[图片]",
-            chunk.text,
-        ).strip()
-        content: list[dict] = [
-            {
-                "type": "text",
-                "text": prompt.substitute(
-                    content_heading="图片上下文",
-                    content=context,
-                ),
-            }
-        ]
-        content.extend(
-            {
-                "type": "image_url",
-                "image_url": {"url": image_url},
-            }
-            for _, image_url in image_matches
-        )
-        return content
