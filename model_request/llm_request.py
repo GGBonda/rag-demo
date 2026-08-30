@@ -2,53 +2,7 @@ from .http_request import post_json
 
 from config import config
 
-def request_table_description(
-    messages: list[dict]
-) -> tuple[str | None, str | None]:
-    """请求生成表格描述。"""
-    return _request_chat_completion(
-        messages,
-        use_vision_model=False,
-        task_name="表格描述",
-    )
-
-
-def request_code_description(
-    messages: list[dict]
-) -> tuple[str | None, str | None]:
-    """请求生成代码描述。"""
-    return _request_chat_completion(
-        messages,
-        use_vision_model=False,
-        task_name="代码描述",
-    )
-
-
-def request_image_description(
-    messages: list[dict]
-) -> tuple[str | None, str | None]:
-    """请求生成图片描述。"""
-    return _request_chat_completion(
-        messages,
-        use_vision_model=True,
-        task_name="图片描述",
-    )
-
-
-def request_retrieve_description(
-    user_content: str | list[dict],
-) -> tuple[str | None, str | None]:
-    """请求生成召回分片的索引简介和问题。"""
-    return _request_chat_completion(
-        user_content=user_content,
-        system_prompt_file="ai_desc_question_for_retrieve_chunk.txt",
-        use_vision_model=isinstance(user_content, list),
-        task_name="召回文档简介",
-        response_format={"type": "json_object"},
-    )
-
-
-def _request_chat_completion(
+def request_chat_completion(
     messages: list[dict],
     use_vision_model: bool,
     task_name: str,

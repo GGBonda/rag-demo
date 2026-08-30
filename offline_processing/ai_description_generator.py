@@ -9,13 +9,7 @@ import re
 
 from config import config
 from data_class import IndexChunk, RetrieveChunk
-from data_class.retrieve_chunk import DATA_IMAGE_RE
-from model_request import (
-    request_code_description,
-    request_image_description,
-    request_retrieve_description,
-    request_table_description,
-)
+from model_request import request_chat_completion
 from prompts import load_prompt
 
 from .chunker import detect_text_type
@@ -56,12 +50,6 @@ def _build_multimodal_user_content(user_content: str) -> list[dict]:
 
 class AIDescriptionGenerator:
 
-    RETRIEVE_DESC_MAX_RETRIES = 3
-    _TYPE_REQUESTS = {
-        "table": request_table_description,
-        "code": request_code_description,
-        "image": request_image_description,
-    }
     _TYPE_PROMPTS = {
         "table": load_prompt("ai_desc_for_table.txt"),
         "code": load_prompt("ai_desc_for_code.txt"),
@@ -79,7 +67,11 @@ class AIDescriptionGenerator:
                 {"role": "user", "content": _build_multimodal_user_content(user_prompt.substitute(content=chunk.text))},
             ]
 
-            content, _ = self._TYPE_REQUESTS[chunk_type](messages)
+            content, _ = request_chat_completion(
+                messages,
+                chunk_type == "image",
+                task_name=f"{chunk_type}描述"
+            )
 
             if not content or not content.strip():
                 raise RuntimeError(f"模型未返回 {chunk_type} 分片的描述")
@@ -92,127 +84,79 @@ class AIDescriptionGenerator:
     ) -> list[IndexChunk]:
         """将每条简介和每个问题分别生成为独立的 IndexChunk。"""
         description_count = config.chunk.index_chunk_description_count
-        if description_count <= 0:
-            raise ValueError("INDEX_CHUNK_DESCRIPTION_COUNT 必须为正整数")
         question_count = config.chunk.index_chunk_question_count
-        if question_count <= 0:
-            raise ValueError("INDEX_CHUNK_QUESTION_COUNT 必须为正整数")
 
         result: list[IndexChunk] = []
         for retrieve_chunk in retrieve_chunks:
-            for retry_count in range(self.RETRIEVE_DESC_MAX_RETRIES + 1):
+            try:
+                sys_prompt, user_prompt = self._RETRIEVE_PROMPT
+
+                messages = [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": _build_multimodal_user_content(
+                        user_prompt.substitute(
+                            description_count=description_count,
+                            question_count=question_count,
+                            title_path=retrieve_chunk.title_path,
+                            content=retrieve_chunk.text
+                        )
+                    )}
+                ]
+
+                content, finish_reason = request_chat_completion(
+                    messages,
+                    any(item.get("type") == "image_url" for item in messages[1].get("content")),
+                    task_name="召回文档简介",
+                    response_format={"type": "json_object"}
+                )
+
                 try:
-                    image_matches = DATA_IMAGE_RE.findall(retrieve_chunk.text)
-                    user_content = self._build_index_chunk_user_content(
-                        retrieve_chunk,
+                    descriptions, questions = self._parse_index_content(
+                        content,
                         description_count,
                         question_count,
-                        image_matches,
                     )
-                    content, finish_reason = request_retrieve_description(
-                        user_content
+                except Exception:
+                    print(f"[召回文档简介] 响应校验失败: finish_reason={finish_reason}, content={content!r}")
+                    raise
+                description_chunks = [
+                    IndexChunk(
+                        id=int(
+                            f"{retrieve_chunk.id}"
+                            f"{start_index + description_index:03d}"
+                        ),
+                        retrieve_id=retrieve_chunk.id,
+                        text=description,
                     )
-
-                    try:
-                        descriptions, questions = self._parse_index_content(
-                            content,
-                            description_count,
-                            question_count,
-                        )
-                    except Exception:
-                        print(f"[召回文档简介] 响应校验失败: finish_reason={finish_reason}, content={content!r}")
-                        raise
-                    description_chunks = [
-                        IndexChunk(
-                            id=int(
-                                f"{retrieve_chunk.id}"
-                                f"{start_index + description_index:03d}"
-                            ),
-                            retrieve_id=retrieve_chunk.id,
-                            text=description,
-                        )
-                        for description_index, description in enumerate(
-                            descriptions,
-                            start=1,
-                        )
-                    ]
-                    question_chunks = [
-                        IndexChunk(
-                            id=int(
-                                f"{retrieve_chunk.id}"
-                                f"{start_index + len(descriptions) + question_index:03d}"
-                            ),
-                            retrieve_id=retrieve_chunk.id,
-                            text=question,
-                        )
-                        for question_index, question in enumerate(
-                            questions,
-                            start=1,
-                        )
-                    ]
-                    result.extend(description_chunks)
-                    result.extend(question_chunks)
-                    break
-                except Exception as exc:
-                    print(
-                        f"[召回文档简介] 生成失败: retrieve_chunk_id={retrieve_chunk.id}, "
-                        f"异常={type(exc).__name__}: {exc}"
+                    for description_index, description in enumerate(
+                        descriptions,
+                        start=1,
                     )
-                    if retry_count >= self.RETRIEVE_DESC_MAX_RETRIES:
-                        print(
-                            "[召回文档简介] 已达到最大重试次数: "
-                            f"retrieve_chunk_id={retrieve_chunk.id}"
-                        )
-                        raise
-                    print(
-                        f"[召回文档简介] 即将进行第 {retry_count + 1}/"
-                        f"{self.RETRIEVE_DESC_MAX_RETRIES} 次重试"
+                ]
+                question_chunks = [
+                    IndexChunk(
+                        id=int(
+                            f"{retrieve_chunk.id}"
+                            f"{start_index + len(descriptions) + question_index:03d}"
+                        ),
+                        retrieve_id=retrieve_chunk.id,
+                        text=question,
                     )
+                    for question_index, question in enumerate(
+                        questions,
+                        start=1,
+                    )
+                ]
+                result.extend(description_chunks)
+                result.extend(question_chunks)
+                break
+            except Exception as exc:
+                print(
+                    f"[召回文档简介] 生成失败: retrieve_chunk_id={retrieve_chunk.id}, "
+                    f"异常={type(exc).__name__}: {exc}"
+                )
 
         return result
-
-    def _build_index_chunk_user_content(
-        self,
-        retrieve_chunk: RetrieveChunk,
-        description_count: int,
-        question_count: int,
-        image_matches: list[tuple[str, str]],
-    ) -> str | list[dict]:
-        if not image_matches:
-            return self._RETRIEVE_PROMPT[1].substitute(
-                description_count=description_count,
-                question_count=question_count,
-                title_path=retrieve_chunk.title_path,
-                content=retrieve_chunk.text,
-            )
-
-        context = DATA_IMAGE_RE.sub(
-            lambda match: (
-                f"[图片说明：{match.group(1)}]"
-                if match.group(1)
-                else "[图片]"
-            ),
-            retrieve_chunk.text,
-        ).strip()
-        content: list[dict] = [
-            {
-                "type": "text",
-                "text": self._RETRIEVE_PROMPT[1].substitute(
-                    description_count=description_count,
-                    question_count=question_count,
-                    title_path=retrieve_chunk.title_path,
-                    content=context,
-                ),
-            }
-        ]
-        content.extend(
-            {
-                "type": "image_url",
-                "image_url": {"url": image_url},
-            }
-            for _, image_url in image_matches
-        )
-        return content
 
     @staticmethod
     def _parse_index_content(
